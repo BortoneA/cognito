@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { allQuestions } from '../data/questionsLoader';
 import { 
   BarChart, 
   Bar, 
@@ -107,7 +106,7 @@ const Dashboard = ({ onSelectFilter }) => {
           <div className="flex items-center gap-4 apple-segmented-bg p-4 border border-white/10 shadow-lg">
             <div className="text-center px-2">
               <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Banco Total</span>
-              <span className="text-2xl font-black text-white">{allQuestions.length}</span>
+              <span className="text-2xl font-black text-white">{questions.length}</span>
               <span className="text-[10px] text-slate-400">questões</span>
             </div>
             <div className="h-10 w-px bg-white/10"></div>
@@ -314,7 +313,7 @@ const Dashboard = ({ onSelectFilter }) => {
 
             <div className="space-y-3">
               {subareaData.slice(0, 7).map((sub, idx) => {
-                const percentage = Math.round((sub.total / allQuestions.length) * 100);
+                const percentage = Math.round((sub.total / questions.length) * 100);
                 return (
                   <div 
                     key={idx} 

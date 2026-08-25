@@ -72,7 +72,13 @@ export const MEDICAL_TAXONOMY = {
     "Tuberculose Pulmonar & Pleural"
   ],
   "Psiquiatria": [
-    "Transtornos de Ansiedade, TOC & Estresse"
+    "Psiquiatria da Infância & Emergências Psiquiátricas",
+    "Transtornos Alimentares & da Personalidade",
+    "Transtornos Psicóticos & Esquizofrenia",
+    "Transtornos de Ansiedade, Pânico, Fobias & TOC",
+    "Transtornos de Estresse, TEPT & Somatização",
+    "Transtornos do Humor (Depressão & Bipolaridade)",
+    "Transtornos por Uso de Substâncias & Adições"
   ],
   "Reumatologia & Imunologia": [
     "Artrites Inflamatórias (Reumatóide, Gota, Espondilites)",

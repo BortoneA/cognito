@@ -1,0 +1,154 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Plus Jakarta Sans", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.015em;
+  }
+}
+
+/* Custom Apple Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Apple Frosted Glass / Vibrancy Effects */
+.apple-glass {
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+}
+
+.apple-card {
+  background: rgba(22, 30, 49, 0.55);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.4), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+}
+
+.apple-card-interactive {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.apple-card-interactive:hover {
+  background: rgba(30, 41, 67, 0.75);
+  border-color: rgba(99, 102, 241, 0.35);
+  transform: translateY(-2px) scale(1.005);
+  box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.6), 0 0 20px 0 rgba(99, 102, 241, 0.15);
+}
+
+.apple-card-interactive:active {
+  transform: scale(0.99);
+}
+
+/* Apple Segmented Control Pill */
+.apple-segmented-bg {
+  background: rgba(9, 14, 26, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 4px;
+  border-radius: 16px;
+  backdrop-filter: blur(12px);
+}
+
+.apple-segmented-item {
+  position: relative;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 12px;
+}
+
+.apple-segmented-item-active {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.9), rgba(124, 58, 237, 0.9));
+  box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.4), inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+/* Subtle Glow Effects */
+.glow-indigo {
+  box-shadow: 0 0 35px -5px rgba(99, 102, 241, 0.3);
+}
+
+.glow-emerald {
+  box-shadow: 0 0 35px -5px rgba(16, 185, 129, 0.3);
+}
+
+.glow-rose {
+  box-shadow: 0 0 35px -5px rgba(244, 63, 94, 0.3);
+}
+
+/* Highlighting styles */
+.highlight-yellow {
+  background-color: rgba(253, 224, 71, 0.25);
+  color: #fef08a;
+  border-radius: 4px;
+  padding: 0.1em 0.3em;
+  box-shadow: 0 0 8px rgba(253, 224, 71, 0.15);
+}
+
+.highlight-green {
+  background-color: rgba(74, 222, 128, 0.25);
+  color: #86efac;
+  border-radius: 4px;
+  padding: 0.1em 0.3em;
+  box-shadow: 0 0 8px rgba(74, 222, 128, 0.15);
+}
+
+.highlight-blue {
+  background-color: rgba(96, 165, 250, 0.25);
+  color: #93c5fd;
+  border-radius: 4px;
+  padding: 0.1em 0.3em;
+  box-shadow: 0 0 8px rgba(96, 165, 250, 0.15);
+}
+
+.scratched-out {
+  text-decoration: line-through;
+  opacity: 0.4;
+  filter: grayscale(80%);
+}
+
+/* 3D Flashcard Flip Perspective */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.transform-style-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
+
+@keyframes bounceShort {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+.animate-bounce-short {
+  animation: bounceShort 1.5s infinite;
+}
+

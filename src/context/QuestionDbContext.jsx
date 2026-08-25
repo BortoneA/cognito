@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { 
   getLocalQuestionEdits, 
   saveLocalQuestionEdit, 
@@ -7,7 +7,8 @@ import {
   exportFullDatabaseJSON,
   loadAllQuestionsFromLocalDB,
   syncFullDatasetToLocalDB,
-  getSyncMetadata
+  getSyncMetadata,
+  CURRENT_DATABASE_VERSION
 } from '../services/localDatabaseService';
 
 const QuestionDbContext = createContext();
@@ -17,223 +18,198 @@ export const QuestionDbProvider = ({ children }) => {
   const [localEditsMap, setLocalEditsMap] = useState({});
   const [isLoaded, setIsLoaded] = useState(false);
   const [isSynchronized, setIsSynchronized] = useState(false);
-  const [lastSyncTime, setLastSyncTime] = useState(null);
+  const [lastSyncTime, setLastSyncTime] = useState(Date.now());
   const [loadError, setLoadError] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatusText, setSyncStatusText] = useState('Sincronizando...');
 
-  // Initialize and synchronize local database
-  useEffect(() => {
-    let isMounted = true;
-
-    const initDatabase = async () => {
-      try {
-        let baseQuestions = [];
-
-        // 1. First, check if full dataset already exists in local IndexedDB (instant offline load)
-        const localCached = await loadAllQuestionsFromLocalDB();
-        const syncMeta = getSyncMetadata();
-
-        if (localCached && localCached.length > 0) {
-          baseQuestions = localCached;
-          if (isMounted) {
-            setIsSynchronized(true);
-            setLastSyncTime(syncMeta?.timestamp || Date.now());
-          }
-        } else {
-          // 2. Fetch base JSON from public/data/ or static import
-          try {
-            const res = await fetch('/data/banco_questoes_pna.json');
-            if (res.ok) {
-              const data = await res.json();
-              baseQuestions = data.questoes || [];
-            }
-          } catch (fetchErr) {
-            console.warn('Fetch failed, falling back to static import', fetchErr);
-          }
-
-          if (baseQuestions.length === 0) {
-            const staticData = await import('../data/banco_questoes_pna.json');
-            baseQuestions = staticData.default?.questoes || staticData.questoes || [];
-          }
-
-          // 3. Automatically synchronize full dataset to IndexedDB locally
-          if (baseQuestions.length > 0) {
-            await syncFullDatasetToLocalDB(baseQuestions);
-            if (isMounted) {
-              setIsSynchronized(true);
-              setLastSyncTime(Date.now());
-            }
-          }
-        }
-
-        // 4. Overlay user edits
-        const edits = await getLocalQuestionEdits();
-        if (!isMounted) return;
-
-        setLocalEditsMap(edits || {});
-
-        if (edits && Object.keys(edits).length > 0) {
-          const merged = baseQuestions.map(q => edits[q.id] || q);
-          const baseIdSet = new Set(baseQuestions.map(q => q.id));
-          Object.values(edits).forEach(customQ => {
-            if (!baseIdSet.has(customQ.id)) {
-              merged.push(customQ);
-            }
-          });
-          setQuestions(merged);
-        } else {
-          setQuestions(baseQuestions);
-        }
-      } catch (err) {
-        console.error('Failed to load local database:', err);
-        if (isMounted) setLoadError(err.message || 'Erro ao sincronizar banco local');
-      } finally {
-        if (isMounted) setIsLoaded(true);
-      }
-    };
-
-    initDatabase();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  // Force manual synchronization of the local database
-  const syncDatabaseLocally = async () => {
-    setIsSyncing(true);
+  // Master synchronization routine
+  const performSync = useCallback(async (forceRemote = false) => {
     try {
-      let freshQuestions = [];
-      const res = await fetch('/data/banco_questoes_pna.json');
-      if (res.ok) {
-        const data = await res.json();
-        freshQuestions = data.questoes || [];
+      setIsSyncing(true);
+      let baseQuestions = [];
+      const syncMeta = getSyncMetadata();
+      const isVersionValid = syncMeta?.version === CURRENT_DATABASE_VERSION && (syncMeta?.count || 0) >= 5000;
+
+      // 1. If not forcing remote, check local IndexedDB first
+      if (!forceRemote && isVersionValid) {
+        const localCached = await loadAllQuestionsFromLocalDB();
+        if (localCached && localCached.length >= 5000) {
+          baseQuestions = localCached;
+        }
       }
 
-      if (freshQuestions.length > 0) {
-        const edits = await getLocalQuestionEdits();
-        const merged = freshQuestions.map(q => edits[q.id] || q);
-        const baseIdSet = new Set(freshQuestions.map(q => q.id));
+      // 2. Fetch fresh dataset if cache is empty, stale, or forced
+      if (baseQuestions.length === 0) {
+        try {
+          const res = await fetch('/data/banco_questoes_pna.json', { cache: 'no-cache' });
+          if (res.ok) {
+            const data = await res.json();
+            baseQuestions = data.questoes || [];
+          }
+        } catch (fetchErr) {
+          console.warn('Fetch fallback to static import', fetchErr);
+        }
+
+        if (baseQuestions.length === 0) {
+          const staticData = await import('../data/banco_questoes_pna.json');
+          baseQuestions = staticData.default?.questoes || staticData.questoes || [];
+        }
+
+        // Store to IndexedDB
+        if (baseQuestions.length > 0) {
+          await syncFullDatasetToLocalDB(baseQuestions, CURRENT_DATABASE_VERSION);
+        }
+      }
+
+      // 3. Overlay user custom edits and additions
+      const edits = await getLocalQuestionEdits();
+      setLocalEditsMap(edits || {});
+
+      let merged = [...baseQuestions];
+      if (edits && Object.keys(edits).length > 0) {
+        const baseIdSet = new Set(baseQuestions.map(q => q.id));
+        merged = baseQuestions.map(q => edits[q.id] || q);
         Object.values(edits).forEach(customQ => {
           if (!baseIdSet.has(customQ.id)) {
             merged.push(customQ);
           }
         });
-
-        await syncFullDatasetToLocalDB(merged);
-        setQuestions(merged);
-        setIsSynchronized(true);
-        setLastSyncTime(Date.now());
-        return { success: true, count: merged.length };
       }
-    } catch (e) {
-      console.error('Sync failed:', e);
-      return { success: false, error: e.message };
+
+      setQuestions(merged);
+      setIsSynchronized(true);
+      setLastSyncTime(Date.now());
+      setSyncStatusText(`🟢 Sincronizado (${merged.length} questões)`);
+      setIsLoaded(true);
+      return merged;
+    } catch (err) {
+      console.error('Sync error:', err);
+      setLoadError(err.message || 'Erro de sincronização');
+      setSyncStatusText('⚠️ Erro de sincronização');
+      return [];
     } finally {
       setIsSyncing(false);
     }
+  }, []);
+
+  // Initial Sync on mount + Continuous Sync Heartbeat
+  useEffect(() => {
+    performSync();
+
+    // Cross-tab synchronization via BroadcastChannel or storage event
+    let channel = null;
+    try {
+      if (typeof window !== 'undefined' && window.BroadcastChannel) {
+        channel = new BroadcastChannel('PNA_DATABASE_SYNC_CHANNEL');
+        channel.onmessage = (msg) => {
+          if (msg.data === 'QUESTION_UPDATED' || msg.data === 'FORCE_RESYNC') {
+            performSync(false);
+          }
+        };
+      }
+    } catch (e) {
+      console.warn('BroadcastChannel not supported', e);
+    }
+
+    const handleStorageChange = (e) => {
+      if (e.key && e.key.startsWith('PNA_MED_')) {
+        performSync(false);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('online', () => performSync(true));
+
+    // Continuous heartbeat sync every 60 seconds
+    const interval = setInterval(() => {
+      performSync(false);
+    }, 60000);
+
+    return () => {
+      if (channel) channel.close();
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, [performSync]);
+
+  // Broadcast helper
+  const notifyOtherTabs = () => {
+    try {
+      if (typeof window !== 'undefined' && window.BroadcastChannel) {
+        const channel = new BroadcastChannel('PNA_DATABASE_SYNC_CHANNEL');
+        channel.postMessage('QUESTION_UPDATED');
+        channel.close();
+      }
+    } catch (e) {
+      console.warn(e);
+    }
   };
 
-  // Update question locally & in memory
-  const updateQuestion = async (updatedQ) => {
-    if (!updatedQ || !updatedQ.id) return;
-
-    // Save to local storage / IndexedDB permanently
-    const saved = await saveLocalQuestionEdit(updatedQ);
+  // Save/Edit a question with immediate real-time synchronization
+  const editQuestion = async (updatedQuestion) => {
+    const saved = await saveLocalQuestionEdit(updatedQuestion);
+    if (!saved) return false;
 
     setLocalEditsMap(prev => ({
       ...prev,
-      [updatedQ.id]: saved
+      [saved.id]: saved
     }));
 
     setQuestions(prev => {
-      const idx = prev.findIndex(q => q.id === updatedQ.id);
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = saved;
-        return next;
+      const exists = prev.some(q => q.id === saved.id);
+      if (exists) {
+        return prev.map(q => q.id === saved.id ? saved : q);
       } else {
-        return [...prev, saved];
+        return [saved, ...prev];
       }
     });
+
+    setLastSyncTime(Date.now());
+    notifyOtherTabs();
+    return true;
   };
 
-  // Add brand new custom question
-  const addCustomQuestion = async (newQ) => {
-    const customId = newQ.id || `CUSTOM-${Date.now()}`;
-    const questionToAdd = {
-      ...newQ,
-      id: customId,
-      numero: newQ.numero || questions.length + 1,
-      ano_da_prova: newQ.ano_da_prova || 2026,
-      area: newQ.area || 'Clínica Médica',
-      subarea: newQ.subarea || 'Geral',
-      nivel_de_dificuldade: newQ.nivel_de_dificuldade || 'Moderada',
-      isCustomCreated: true
-    };
-    await updateQuestion(questionToAdd);
-    return questionToAdd;
-  };
-
-  // Reset all local edits back to raw JSON
-  const resetEdits = async () => {
+  // Reset local edits
+  const resetAllEdits = async () => {
     await clearAllLocalQuestionEdits();
-    setLocalEditsMap({});
-    // Re-fetch raw dataset
-    try {
-      const res = await fetch('/data/banco_questoes_pna.json');
-      if (res.ok) {
-        const data = await res.json();
-        const raw = data.questoes || [];
-        await syncFullDatasetToLocalDB(raw);
-        setQuestions(raw);
-      }
-    } catch (e) {
-      console.error(e);
-    }
+    await performSync(true);
+    notifyOtherTabs();
+    return true;
   };
 
-  // Import full external JSON database
-  const importFullDatabase = async (jsonString) => {
-    try {
-      const parsed = typeof jsonString === 'string' ? JSON.parse(jsonString) : jsonString;
-      const questionsList = parsed.questoes || (Array.isArray(parsed) ? parsed : null);
-      if (!questionsList || !Array.isArray(questionsList) || questionsList.length === 0) {
-        return { success: false, message: 'Formato inválido. O arquivo deve conter uma lista de questões.' };
-      }
-
-      await syncFullDatasetToLocalDB(questionsList);
-      setQuestions(questionsList);
-      setIsSynchronized(true);
-      setLastSyncTime(Date.now());
-      return { success: true, count: questionsList.length };
-    } catch (err) {
-      return { success: false, message: err.message };
-    }
+  // Force full resync from server
+  const forceFullResync = async () => {
+    await clearFullLocalCache();
+    const list = await performSync(true);
+    notifyOtherTabs();
+    return list.length;
   };
 
-  // Export database
+  // Export full DB
   const exportDatabase = () => {
     exportFullDatabaseJSON(questions);
   };
 
   return (
-    <QuestionDbContext.Provider value={{
-      questions,
-      totalQuestionsCount: questions.length,
-      localEditsCount: Object.keys(localEditsMap).length,
-      isLoaded,
-      isSynchronized,
-      lastSyncTime,
-      isSyncing,
-      loadError,
-      syncDatabaseLocally,
-      updateQuestion,
-      addCustomQuestion,
-      resetEdits,
-      importFullDatabase,
-      exportDatabase
-    }}>
+    <QuestionDbContext.Provider
+      value={{
+        questions,
+        isLoaded,
+        isSynchronized,
+        isSyncing,
+        lastSyncTime,
+        syncStatusText,
+        loadError,
+        localEditsCount: Object.keys(localEditsMap).length,
+        localEditsMap,
+        editQuestion,
+        resetAllEdits,
+        forceFullResync,
+        exportDatabase,
+        performSync
+      }}
+    >
       {children}
     </QuestionDbContext.Provider>
   );

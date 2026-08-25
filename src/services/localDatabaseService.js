@@ -1,18 +1,21 @@
 /**
- * Local Database Service using IndexedDB & LocalStorage fallback
- * Manages full local offline synchronization of all 5,073 questions + user edits.
+ * High-Reliability Real-Time Local Database Service
+ * Manages continuous bidirectional synchronization between IndexedDB, LocalStorage,
+ * and in-memory cache for 5,073+ questions, custom edits, and user additions.
  */
 
-const DB_NAME = 'PNA_MED_LOCAL_DB_V2';
-const DB_VERSION = 2;
+export const CURRENT_DATABASE_VERSION = '2026.08.25-300-subareas-v4';
+const DB_NAME = 'PNA_MED_LOCAL_DB_V3';
+const DB_VERSION = 3;
+
 const STORE_QUESTIONS_CACHE = 'all_questions';
 const STORE_EDITS = 'edited_questions';
 const STORE_META = 'metadata';
 
-const LOCAL_STORAGE_OVERRIDE_KEY = 'PNA_MED_LOCAL_QUESTION_EDITS_V1';
-const LOCAL_STORAGE_SYNC_META_KEY = 'PNA_MED_SYNC_META_V1';
+const LOCAL_STORAGE_OVERRIDE_KEY = 'PNA_MED_LOCAL_QUESTION_EDITS_V2';
+const LOCAL_STORAGE_SYNC_META_KEY = 'PNA_MED_SYNC_META_V2';
 
-// Open or initialize IndexedDB
+// Safe IndexedDB Opener with automatic schema upgrade
 const openDB = () => {
   return new Promise((resolve) => {
     if (typeof window === 'undefined' || !window.indexedDB) {
@@ -42,6 +45,18 @@ const openDB = () => {
 };
 
 /**
+ * Gets Sync Metadata
+ */
+export const getSyncMetadata = () => {
+  try {
+    const saved = localStorage.getItem(LOCAL_STORAGE_SYNC_META_KEY);
+    return saved ? JSON.parse(saved) : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
  * Loads all questions directly from local IndexedDB cache
  */
 export const loadAllQuestionsFromLocalDB = async () => {
@@ -56,7 +71,7 @@ export const loadAllQuestionsFromLocalDB = async () => {
         const req = store.getAll();
         req.onsuccess = () => {
           const list = req.result;
-          if (list && list.length > 0) {
+          if (list && list.length >= 5000) {
             resolve(list);
           } else {
             resolve(null);
@@ -73,9 +88,9 @@ export const loadAllQuestionsFromLocalDB = async () => {
 };
 
 /**
- * Saves/Synchronizes the full dataset into local IndexedDB for instant offline access
+ * Synchronizes the full dataset into local IndexedDB permanently
  */
-export const syncFullDatasetToLocalDB = async (questions) => {
+export const syncFullDatasetToLocalDB = async (questions, version = CURRENT_DATABASE_VERSION) => {
   if (!questions || questions.length === 0) return false;
 
   try {
@@ -88,7 +103,7 @@ export const syncFullDatasetToLocalDB = async (questions) => {
         const qStore = tx.objectStore(STORE_QUESTIONS_CACHE);
         const mStore = tx.objectStore(STORE_META);
 
-        // Put questions in batch
+        // Put all questions in batch
         questions.forEach(q => {
           qStore.put(q);
         });
@@ -98,7 +113,7 @@ export const syncFullDatasetToLocalDB = async (questions) => {
           key: 'last_sync',
           timestamp: Date.now(),
           count: questions.length,
-          version: '2.0-offline'
+          version: version
         };
         mStore.put(syncMeta);
 
@@ -161,7 +176,7 @@ const getFallbackLocalStorage = () => {
 };
 
 /**
- * Saves a single edited question permanently to IndexedDB & LocalStorage fallback
+ * Saves a single edited question permanently to IndexedDB & LocalStorage
  */
 export const saveLocalQuestionEdit = async (question) => {
   if (!question || !question.id) return false;
@@ -181,7 +196,7 @@ export const saveLocalQuestionEdit = async (question) => {
     console.error('Failed to save to LocalStorage:', e);
   }
 
-  // 2. IndexedDB updates (both in edits store and full cache store)
+  // 2. IndexedDB updates
   try {
     const db = await openDB();
     if (db) {
@@ -205,30 +220,26 @@ export const clearAllLocalQuestionEdits = async () => {
     const db = await openDB();
     if (db) {
       const tx = db.transaction(STORE_EDITS, 'readwrite');
-      const store = tx.objectStore(STORE_EDITS);
-      store.clear();
+      tx.objectStore(STORE_EDITS).clear();
     }
     return true;
-  } catch (e) {
-    console.error('Failed to clear local DB edits:', e);
+  } catch {
     return false;
   }
 };
 
 /**
- * Purges full local database cache for a clean resync
+ * Clears full local cache forcing complete fresh sync
  */
 export const clearFullLocalCache = async () => {
   try {
+    localStorage.removeItem(LOCAL_STORAGE_SYNC_META_KEY);
     const db = await openDB();
     if (db) {
-      const tx = db.transaction([STORE_QUESTIONS_CACHE, STORE_EDITS, STORE_META], 'readwrite');
+      const tx = db.transaction([STORE_QUESTIONS_CACHE, STORE_META], 'readwrite');
       tx.objectStore(STORE_QUESTIONS_CACHE).clear();
-      tx.objectStore(STORE_EDITS).clear();
       tx.objectStore(STORE_META).clear();
     }
-    localStorage.removeItem(LOCAL_STORAGE_OVERRIDE_KEY);
-    localStorage.removeItem(LOCAL_STORAGE_SYNC_META_KEY);
     return true;
   } catch {
     return false;
@@ -236,34 +247,20 @@ export const clearFullLocalCache = async () => {
 };
 
 /**
- * Gets sync status metadata
+ * Exports full database as formatted JSON file
  */
-export const getSyncMetadata = () => {
-  try {
-    const saved = localStorage.getItem(LOCAL_STORAGE_SYNC_META_KEY);
-    return saved ? JSON.parse(saved) : null;
-  } catch {
-    return null;
-  }
-};
-
-/**
- * Exports current full merged database to JSON file
- */
-export const exportFullDatabaseJSON = (allQuestions) => {
-  const exportData = {
-    titulo: "Banco de questões — PNA 2018 a 2024 e Simulações APNA 2023 — Sincronização Local",
-    versao: "2.0",
-    ano_da_prova: "2018–2024",
-    total_questoes: allQuestions.length,
-    data_exportacao: new Date().toISOString(),
-    questoes: allQuestions
-  };
-
-  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
+export const exportFullDatabaseJSON = (questions) => {
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(
+    JSON.stringify({
+      dataset: "PNA_MED_PORTUGAL_MASTER",
+      exportedAt: new Date().toISOString(),
+      totalQuestoes: questions.length,
+      questoes: questions
+    }, null, 2)
+  );
   const downloadAnchor = document.createElement('a');
   downloadAnchor.setAttribute("href", dataStr);
-  downloadAnchor.setAttribute("download", `banco_questoes_pna_local_${new Date().toISOString().slice(0, 10)}.json`);
+  downloadAnchor.setAttribute("download", `banco_questoes_pna_sync_${Date.now()}.json`);
   document.body.appendChild(downloadAnchor);
   downloadAnchor.click();
   downloadAnchor.remove();

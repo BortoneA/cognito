@@ -1,14 +1,11 @@
 import React, { useState } from 'react';
 import { Target, Flame, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 import { useUserProgress } from '../context/UserProgressContext';
-import { getOverviewKPIs } from '../utils/analyticsHelpers';
-import { useQuestionDb } from '../context/QuestionDbContext';
 
 const PRESET_GOALS = [5, 10, 20, 30, 50];
 
 const DailyGoalBanner = () => {
   const { progress, setDailyGoal } = useUserProgress();
-  const { questions } = useQuestionDb();
   const [showGoalPicker, setShowGoalPicker] = useState(false);
   const [celebrated, setCelebrated] = useState(false);
 

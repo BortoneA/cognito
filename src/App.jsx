@@ -17,7 +17,7 @@ import QuestionEditorModal from './components/QuestionEditorModal';
 import QuickTestModal from './components/QuickTestModal';
 import QuestionNoteModal from './components/QuestionNoteModal';
 import { filterQuestions } from './data/questionsLoader';
-import { checkNewAchievements } from './services/achievementService';
+import { checkNewAchievements, ACHIEVEMENTS } from './services/achievementService';
 
 function MainApp() {
   const { progress, unlockAchievement } = useUserProgress();
@@ -43,21 +43,21 @@ function MainApp() {
 
   const filteredQuestions = filterQuestions(questions, filters, progress);
 
+  const answersCount = Object.keys(progress.answers || {}).length;
+  const activityCount = Object.keys(progress.dailyActivity || {}).length;
+
   // Achievement checker
   useEffect(() => {
     const newOnes = checkNewAchievements(progress, progress.unlockedBadges || {});
     if (newOnes.length > 0) {
       newOnes.forEach(id => unlockAchievement(id));
-      // Show toast for first new achievement
-      import('./services/achievementService').then(({ ACHIEVEMENTS }) => {
-        const ach = ACHIEVEMENTS.find(a => a.id === newOnes[0]);
-        if (ach) {
-          setNewAchievementToast(ach);
-          setTimeout(() => setNewAchievementToast(null), 4000);
-        }
-      });
+      const ach = ACHIEVEMENTS.find(a => a.id === newOnes[0]);
+      if (ach) {
+        setNewAchievementToast(ach);
+        setTimeout(() => setNewAchievementToast(null), 4000);
+      }
     }
-  }, [Object.keys(progress.answers || {}).length, Object.keys(progress.dailyActivity || {}).length]);
+  }, [answersCount, activityCount]);
 
   const handleSelectFilterFromDashboard = (newFilters) => {
     setFilters(prev => ({ ...prev, ...newFilters }));

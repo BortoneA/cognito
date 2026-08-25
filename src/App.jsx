@@ -21,7 +21,7 @@ import { checkNewAchievements, ACHIEVEMENTS } from './services/achievementServic
 
 function MainApp() {
   const { progress, unlockAchievement } = useUserProgress();
-  const { questions } = useQuestionDb();
+  const { questions, isLoaded } = useQuestionDb();
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isDataModalOpen, setIsDataModalOpen] = useState(false);
@@ -74,6 +74,25 @@ function MainApp() {
     setNoteQuestion(question);
     setIsNoteModalOpen(true);
   };
+
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
+        <div className="relative mb-6">
+          <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-indigo-500 via-indigo-600 to-purple-600 flex items-center justify-center shadow-2xl shadow-indigo-500/30 text-white text-3xl animate-bounce-short">
+            🩺
+          </div>
+        </div>
+        <h2 className="text-2xl font-black text-white tracking-tight mb-2">PNA MedPremium</h2>
+        <p className="text-xs text-slate-400 max-w-sm leading-relaxed mb-6">
+          Carregando 5.073 questões clínicas e sincronizando banco local...
+        </p>
+        <div className="w-48 bg-slate-900 rounded-full h-1.5 overflow-hidden border border-white/10">
+          <div className="bg-gradient-to-r from-indigo-500 to-purple-500 h-full rounded-full animate-pulse w-3/4" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">

@@ -36,8 +36,8 @@ const ExamSimulator = () => {
   const [isFinished, setIsFinished] = useState(false);
   const [examReport, setExamReport] = useState(null);
 
-  const years = getUniqueYears();
-  const areas = getUniqueAreas();
+  const years = getUniqueYears(questions);
+  const areas = getUniqueAreas(questions);
 
   useEffect(() => {
     let interval = null;

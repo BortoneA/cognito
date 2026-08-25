@@ -18,12 +18,14 @@ import {
   getUniqueSubareas, 
   getUniqueDifficulties 
 } from '../data/questionsLoader';
+import { useQuestionDb } from '../context/QuestionDbContext';
 
 const QuestionFilter = ({ filters, setFilters, totalFilteredCount, totalCount }) => {
-  const years = getUniqueYears();
-  const areas = getUniqueAreas();
-  const subareas = getUniqueSubareas(filters.area);
-  const difficulties = getUniqueDifficulties();
+  const { questions } = useQuestionDb();
+  const years = getUniqueYears(questions);
+  const areas = getUniqueAreas(questions);
+  const subareas = getUniqueSubareas(questions, filters.area);
+  const difficulties = getUniqueDifficulties(questions);
 
   const handleAreaChange = (e) => {
     const selectedArea = e.target.value;

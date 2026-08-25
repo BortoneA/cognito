@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import bancoData from '../data/banco_questoes_pna.json';
 import { 
   getLocalQuestionEdits, 
   saveLocalQuestionEdit, 
@@ -10,36 +9,67 @@ import {
 const QuestionDbContext = createContext();
 
 export const QuestionDbProvider = ({ children }) => {
-  const [questions, setQuestions] = useState(bancoData.questoes || []);
+  const [questions, setQuestions] = useState([]);
   const [localEditsMap, setLocalEditsMap] = useState({});
   const [isLoaded, setIsLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(null);
 
   // Load initial dataset & merge with local IndexedDB/LocalStorage edits
   useEffect(() => {
-    const initLocalDb = async () => {
+    let isMounted = true;
+
+    const initDatabase = async () => {
       try {
+        let baseQuestions = [];
+
+        // 1. Try fetching from public/data/ (streaming browser JSON parse, highly efficient)
+        try {
+          const res = await fetch('/data/banco_questoes_pna.json');
+          if (res.ok) {
+            const data = await res.json();
+            baseQuestions = data.questoes || [];
+          }
+        } catch (fetchErr) {
+          console.warn('Fetch from public data failed, trying fallback import...', fetchErr);
+        }
+
+        // 2. Fallback to dynamic import if fetch didn't return data
+        if (baseQuestions.length === 0) {
+          const staticData = await import('../data/banco_questoes_pna.json');
+          baseQuestions = staticData.default?.questoes || staticData.questoes || [];
+        }
+
+        // 3. Load local edits from IndexedDB / LocalStorage
         const edits = await getLocalQuestionEdits();
-        setLocalEditsMap(edits);
+        if (!isMounted) return;
+
+        setLocalEditsMap(edits || {});
 
         if (edits && Object.keys(edits).length > 0) {
-          const merged = (bancoData.questoes || []).map(q => edits[q.id] || q);
-          // Also append any newly created custom questions that aren't in base json
-          const baseIdSet = new Set((bancoData.questoes || []).map(q => q.id));
+          const merged = baseQuestions.map(q => edits[q.id] || q);
+          const baseIdSet = new Set(baseQuestions.map(q => q.id));
           Object.values(edits).forEach(customQ => {
             if (!baseIdSet.has(customQ.id)) {
               merged.push(customQ);
             }
           });
           setQuestions(merged);
+        } else {
+          setQuestions(baseQuestions);
         }
       } catch (err) {
-        console.error('Failed to load local DB edits:', err);
+        console.error('Failed to load database:', err);
+        if (isMounted) setLoadError(err.message || 'Erro ao carregar banco');
       } finally {
-        setIsLoaded(true);
+        if (isMounted) setIsLoaded(true);
       }
     };
 
-    initLocalDb();
+    initDatabase();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Update question locally & in memory
@@ -87,7 +117,16 @@ export const QuestionDbProvider = ({ children }) => {
   const resetEdits = async () => {
     await clearAllLocalQuestionEdits();
     setLocalEditsMap({});
-    setQuestions(bancoData.questoes || []);
+    // Re-fetch raw dataset
+    try {
+      const res = await fetch('/data/banco_questoes_pna.json');
+      if (res.ok) {
+        const data = await res.json();
+        setQuestions(data.questoes || []);
+      }
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   // Export database
@@ -101,6 +140,7 @@ export const QuestionDbProvider = ({ children }) => {
       totalQuestionsCount: questions.length,
       localEditsCount: Object.keys(localEditsMap).length,
       isLoaded,
+      loadError,
       updateQuestion,
       addCustomQuestion,
       resetEdits,

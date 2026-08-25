@@ -1,24 +1,19 @@
-import bancoData from './banco_questoes_pna.json';
+/**
+ * Questions Loader & Filtering Utilities
+ */
 
-export const rawDataset = bancoData;
-export const allQuestions = bancoData.questoes || [];
-
-export const getDatasetMetadata = () => ({
-  titulo: bancoData.titulo || "Banco de questões – PNA 2018 a 2024",
-  versao: bancoData.versao || "1.0",
-  anoDaProva: bancoData.ano_da_prova || "2018-2024",
-  totalQuestoes: allQuestions.length,
-  classificacaoReferencia: bancoData.classificacao_referencia || "AMBOSS Clinical Classification"
-});
-
-export const getUniqueYears = () => {
-  const years = new Set(allQuestions.map(q => q.ano_da_prova).filter(Boolean));
+export const getUniqueYears = (questions = []) => {
+  const years = new Set(questions.map(q => q.ano_da_prova).filter(Boolean));
+  if (years.size === 0) {
+    // Default fallback years for PNA
+    return [2024, 2023, 2022, 2021, 2020, 2019, 2018];
+  }
   return Array.from(years).sort((a, b) => b - a); // Descending (2024 -> 2018)
 };
 
-export const getUniqueAreas = () => {
+export const getUniqueAreas = (questions = []) => {
   const areasMap = {};
-  allQuestions.forEach(q => {
+  questions.forEach(q => {
     const area = q.area || "Outros";
     areasMap[area] = (areasMap[area] || 0) + 1;
   });
@@ -27,9 +22,9 @@ export const getUniqueAreas = () => {
     .map(([area, count]) => ({ area, count }));
 };
 
-export const getUniqueSubareas = (selectedArea = null) => {
+export const getUniqueSubareas = (questions = [], selectedArea = null) => {
   const subareasMap = {};
-  allQuestions.forEach(q => {
+  questions.forEach(q => {
     if (selectedArea && selectedArea !== 'all' && q.area !== selectedArea) return;
     const subarea = q.subarea || "Geral";
     subareasMap[subarea] = (subareasMap[subarea] || 0) + 1;
@@ -39,20 +34,20 @@ export const getUniqueSubareas = (selectedArea = null) => {
     .map(([subarea, count]) => ({ subarea, count }));
 };
 
-export const getUniqueDifficulties = () => {
+export const getUniqueDifficulties = (questions = []) => {
   const diffMap = {};
-  allQuestions.forEach(q => {
+  questions.forEach(q => {
     const diff = q.nivel_de_dificuldade || "Não informada";
     diffMap[diff] = (diffMap[diff] || 0) + 1;
   });
   return Object.entries(diffMap).map(([diff, count]) => ({ difficulty: diff, count }));
 };
 
-export const filterQuestions = (questions, filters, userProgress = {}) => {
+export const filterQuestions = (questions = [], filters = {}, userProgress = {}) => {
   return questions.filter(q => {
     // Year filter
     if (filters.year && filters.year !== 'all') {
-      if (q.ano_da_prova !== parseInt(filters.year, 10)) return false;
+      if (String(q.ano_da_prova) !== String(filters.year)) return false;
     }
 
     // Area filter

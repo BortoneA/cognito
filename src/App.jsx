@@ -154,7 +154,10 @@ function MainApp() {
         )}
 
         {activeTab === 'simulations' && (
-          <ExamSimulator />
+          <ExamSimulator
+            onEditQuestion={handleOpenEditQuestion}
+            onOpenNote={handleOpenNote}
+          />
         )}
       </main>
 

@@ -70,8 +70,45 @@ export const saveFlashcards = (cards) => {
   }
 };
 
+export const clearAllFlashcards = () => {
+  try {
+    localStorage.removeItem(FLASHCARDS_STORAGE_KEY);
+    return [];
+  } catch (e) {
+    console.error('Failed to clear flashcards:', e);
+    return [];
+  }
+};
+
 /**
- * Auto-generates initial Flashcard Deck from questions dataset
+ * Creates a new custom crafted flashcard
+ */
+export const createCustomFlashcard = (cardData) => {
+  const currentCards = getStoredFlashcards();
+  const newCard = {
+    id: `fc-custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    front: cardData.front || '',
+    back: cardData.back || '',
+    area: cardData.area || 'Clínica Médica',
+    subarea: cardData.subarea || 'Geral',
+    theme: cardData.theme || 'Conceito Clínico',
+    tags: cardData.tags || [],
+    interval: 0,
+    repetitions: 0,
+    easeFactor: 2.5,
+    dueDate: Date.now(),
+    lastReviewed: null,
+    status: 'new',
+    createdAt: Date.now()
+  };
+
+  const updated = [newCard, ...currentCards];
+  saveFlashcards(updated);
+  return { newCard, updated };
+};
+
+/**
+ * Generates flashcards on-demand from selected questions (e.g. error notebook or specific area)
  */
 export const generateFlashcardsFromQuestions = (questions, currentCards = []) => {
   const existingQuestionIds = new Set(currentCards.map(c => c.questionId).filter(Boolean));
@@ -80,7 +117,7 @@ export const generateFlashcardsFromQuestions = (questions, currentCards = []) =>
   questions.forEach(q => {
     if (!existingQuestionIds.has(q.id) && q.enunciado && q.explicacao) {
       const front = `[${q.area} • ${q.subarea}]\n\n${q.enunciado.slice(0, 300)}${q.enunciado.length > 300 ? '...' : ''}`;
-      const back = `✅ Gabarito: Alternativa ${q.resposta_correta}\n\n📌 Tema: ${q.doenca_ou_conjunto_de_doencas || 'Clínico'}\n\n💡 Explicação:\n${q.explicacao.slice(0, 500)}${q.explicacao.length > 500 ? '...' : ''}`;
+      const back = `✅ Gabarito: Alternativa ${q.opcao_correta || q.opção_correta || q.resposta_correta}\n\n📌 Tema: ${q.doenca_ou_conjunto_de_doencas || 'Clínico'}\n\n💡 Explicação:\n${q.explicacao.slice(0, 500)}${q.explicacao.length > 500 ? '...' : ''}`;
 
       newCards.push({
         id: `fc-q-${q.id}`,
@@ -95,7 +132,8 @@ export const generateFlashcardsFromQuestions = (questions, currentCards = []) =>
         easeFactor: 2.5,
         dueDate: Date.now(),
         lastReviewed: null,
-        status: 'new'
+        status: 'new',
+        createdAt: Date.now()
       });
     }
   });

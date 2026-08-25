@@ -19,7 +19,7 @@ import { useQuestionDb } from '../context/QuestionDbContext';
 import { generateExamReport } from '../services/pdfExportService';
 
 
-const ExamSimulator = () => {
+const ExamSimulator = ({ onEditQuestion, onOpenNote }) => {
   const { saveExamResult, saveAnswer } = useUserProgress();
   const { questions } = useQuestionDb();
 
@@ -232,7 +232,8 @@ const ExamSimulator = () => {
   }
 
   if (isExamRunning && !isFinished) {
-    const currentQ = examQuestions[currentIndex];
+    const currentQRaw = examQuestions[currentIndex];
+    const currentQ = currentQRaw ? (questions.find(q => q.id === currentQRaw.id) || currentQRaw) : null;
     const answeredCount = Object.keys(examAnswers).length;
 
     return (
@@ -289,6 +290,8 @@ const ExamSimulator = () => {
             question={currentQ}
             isSimulationMode={true}
             onAnswerSimulation={handleOptionSelect}
+            onEditQuestion={onEditQuestion}
+            onOpenNote={onOpenNote}
           />
         )}
 
@@ -389,9 +392,17 @@ const ExamSimulator = () => {
           <h3 className="text-lg font-bold text-white border-b border-white/10 pb-3">
             Gabarito Comentado da Prova
           </h3>
-          {examQuestions.map(q => (
-            <QuestionCard key={q.id} question={q} />
-          ))}
+          {examQuestions.map(q => {
+            const upToDateQ = questions.find(item => item.id === q.id) || q;
+            return (
+              <QuestionCard
+                key={q.id}
+                question={upToDateQ}
+                onEditQuestion={onEditQuestion}
+                onOpenNote={onOpenNote}
+              />
+            );
+          })}
         </div>
       </div>
     );

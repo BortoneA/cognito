@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import staticDatabase from '../data/banco_questoes_pna.json';
 import { 
   getLocalQuestionEdits, 
   saveLocalQuestionEdit, 
@@ -13,56 +14,40 @@ import {
 
 const QuestionDbContext = createContext();
 
+const initialQuestions = staticDatabase?.questoes || [];
+
 export const QuestionDbProvider = ({ children }) => {
-  const [questions, setQuestions] = useState([]);
+  const [questions, setQuestions] = useState(initialQuestions);
   const [localEditsMap, setLocalEditsMap] = useState({});
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [isSynchronized, setIsSynchronized] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(true); // Instant load
+  const [isSynchronized, setIsSynchronized] = useState(true);
   const [lastSyncTime, setLastSyncTime] = useState(Date.now());
   const [loadError, setLoadError] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [syncStatusText, setSyncStatusText] = useState('Sincronizando...');
+  const [syncStatusText, setSyncStatusText] = useState(`🟢 Sincronizado (${initialQuestions.length} questões)`);
 
-  // Master synchronization routine
+  // Master background synchronization routine
   const performSync = useCallback(async (forceRemote = false) => {
     try {
       setIsSyncing(true);
-      let baseQuestions = [];
+      let baseQuestions = initialQuestions;
       const syncMeta = getSyncMetadata();
       const isVersionValid = syncMeta?.version === CURRENT_DATABASE_VERSION && (syncMeta?.count || 0) >= 5000;
 
-      // 1. If not forcing remote, check local IndexedDB first
+      // 1. If valid cache exists in IndexedDB, load it
       if (!forceRemote && isVersionValid) {
         const localCached = await loadAllQuestionsFromLocalDB();
         if (localCached && localCached.length >= 5000) {
           baseQuestions = localCached;
         }
-      }
-
-      // 2. Fetch fresh dataset if cache is empty, stale, or forced
-      if (baseQuestions.length === 0) {
-        try {
-          const res = await fetch('/data/banco_questoes_pna.json', { cache: 'no-cache' });
-          if (res.ok) {
-            const data = await res.json();
-            baseQuestions = data.questoes || [];
-          }
-        } catch (fetchErr) {
-          console.warn('Fetch fallback to static import', fetchErr);
-        }
-
-        if (baseQuestions.length === 0) {
-          const staticData = await import('../data/banco_questoes_pna.json');
-          baseQuestions = staticData.default?.questoes || staticData.questoes || [];
-        }
-
-        // Store to IndexedDB
+      } else {
+        // Sync static base to local IndexedDB
         if (baseQuestions.length > 0) {
           await syncFullDatasetToLocalDB(baseQuestions, CURRENT_DATABASE_VERSION);
         }
       }
 
-      // 3. Overlay user custom edits and additions
+      // 2. Overlay user custom edits and additions
       const edits = await getLocalQuestionEdits();
       setLocalEditsMap(edits || {});
 
@@ -84,20 +69,20 @@ export const QuestionDbProvider = ({ children }) => {
       setIsLoaded(true);
       return merged;
     } catch (err) {
-      console.error('Sync error:', err);
-      setLoadError(err.message || 'Erro de sincronização');
-      setSyncStatusText('⚠️ Erro de sincronização');
-      return [];
+      console.warn('Sync notice:', err);
+      // Fallback to initial questions
+      setQuestions(initialQuestions);
+      setIsLoaded(true);
+      return initialQuestions;
     } finally {
       setIsSyncing(false);
     }
   }, []);
 
-  // Initial Sync on mount + Continuous Sync Heartbeat
+  // Initial Background Sync + Cross-tab listeners
   useEffect(() => {
     performSync();
 
-    // Cross-tab synchronization via BroadcastChannel or storage event
     let channel = null;
     try {
       if (typeof window !== 'undefined' && window.BroadcastChannel) {
@@ -109,7 +94,7 @@ export const QuestionDbProvider = ({ children }) => {
         };
       }
     } catch (e) {
-      console.warn('BroadcastChannel not supported', e);
+      console.debug('BroadcastChannel not supported', e);
     }
 
     const handleStorageChange = (e) => {
@@ -121,7 +106,6 @@ export const QuestionDbProvider = ({ children }) => {
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('online', () => performSync(true));
 
-    // Continuous heartbeat sync every 60 seconds
     const interval = setInterval(() => {
       performSync(false);
     }, 60000);
@@ -133,7 +117,6 @@ export const QuestionDbProvider = ({ children }) => {
     };
   }, [performSync]);
 
-  // Broadcast helper
   const notifyOtherTabs = () => {
     try {
       if (typeof window !== 'undefined' && window.BroadcastChannel) {
@@ -142,7 +125,7 @@ export const QuestionDbProvider = ({ children }) => {
         channel.close();
       }
     } catch (e) {
-      console.warn(e);
+      console.debug(e);
     }
   };
 
@@ -151,11 +134,14 @@ export const QuestionDbProvider = ({ children }) => {
     const saved = await saveLocalQuestionEdit(updatedQuestion);
     if (!saved) return false;
 
-    // Direct Disk File Write to local project folder
+    // Direct Disk File Write
     try {
       fetch('/api/save-question', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
         body: JSON.stringify(saved)
       });
     } catch (e) {
@@ -181,7 +167,6 @@ export const QuestionDbProvider = ({ children }) => {
     return true;
   };
 
-  // Reset local edits
   const resetAllEdits = async () => {
     await clearAllLocalQuestionEdits();
     await performSync(true);
@@ -189,7 +174,6 @@ export const QuestionDbProvider = ({ children }) => {
     return true;
   };
 
-  // Force full resync from server
   const forceFullResync = async () => {
     await clearFullLocalCache();
     const list = await performSync(true);
@@ -197,7 +181,6 @@ export const QuestionDbProvider = ({ children }) => {
     return list.length;
   };
 
-  // Export full DB
   const exportDatabase = () => {
     exportFullDatabaseJSON(questions);
   };

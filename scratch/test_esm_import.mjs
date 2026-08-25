@@ -44,8 +44,10 @@ async function run() {
     if (root && root.innerHTML.length > 0) {
       console.log('Root HTML snippet:\n', root.innerHTML.substring(0, 500));
     }
+    process.exit(0);
   } catch (err) {
     console.error('❌ CRASH IN BUNDLE IMPORT:', err);
+    process.exit(1);
   }
 }
 

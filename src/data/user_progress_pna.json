@@ -1,0 +1,22 @@
+{
+  "updatedAt": "2026-08-25T22:19:19.164Z",
+  "answers": {
+    "PNA2024-001": {
+      "selectedOption": "B",
+      "isCorrect": true,
+      "timestamp": 1724628000000,
+      "timeSpentMs": 45000
+    }
+  },
+  "savedQuestions": {},
+  "notes": {
+    "PNA2024-001": "Anotacao de teste persistida direto no disco"
+  },
+  "examHistory": [],
+  "dailyActivity": {
+    "2026-08-25": {
+      "questions": 1,
+      "flashcards": 0
+    }
+  }
+}

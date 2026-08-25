@@ -10,7 +10,9 @@ const defaultState = {
   notes: {},            // { [qId]: string }
   examHistory: [],      // Array of exam simulation logs
   dailyActivity: {},    // { 'YYYY-MM-DD': { questions: 0, flashcards: 0 } }
-  highlighterColor: 'yellow'
+  highlighterColor: 'yellow',
+  unlockedBadges: {},   // { [achievementId]: timestamp }
+  dailyGoal: 20,        // questões por dia
 };
 
 export const UserProgressProvider = ({ children }) => {
@@ -138,6 +140,23 @@ export const UserProgressProvider = ({ children }) => {
     setProgress(defaultState);
   };
 
+  const unlockAchievement = (achievementId) => {
+    setProgress(prev => {
+      if (prev.unlockedBadges?.[achievementId]) return prev; // already unlocked
+      return {
+        ...prev,
+        unlockedBadges: {
+          ...(prev.unlockedBadges || {}),
+          [achievementId]: Date.now()
+        }
+      };
+    });
+  };
+
+  const setDailyGoal = (goal) => {
+    setProgress(prev => ({ ...prev, dailyGoal: goal }));
+  };
+
   return (
     <UserProgressContext.Provider value={{
       progress,
@@ -149,7 +168,9 @@ export const UserProgressProvider = ({ children }) => {
       saveExamResult,
       exportData,
       importData,
-      resetProgress
+      resetProgress,
+      unlockAchievement,
+      setDailyGoal,
     }}>
       {children}
     </UserProgressContext.Provider>

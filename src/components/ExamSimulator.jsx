@@ -1,20 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Clock, 
-  Play, 
-  Award, 
-  CheckCircle2, 
-  RotateCcw, 
-  FileSpreadsheet, 
-  Grid, 
-  ChevronLeft, 
-  ChevronRight
+import {
+  Clock,
+  Play,
+  Award,
+  CheckCircle2,
+  RotateCcw,
+  FileSpreadsheet,
+  Grid,
+  ChevronLeft,
+  ChevronRight,
+  FileDown,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { getUniqueYears, getUniqueAreas } from '../data/questionsLoader';
 import QuestionCard from './QuestionCard';
 import { useUserProgress } from '../context/UserProgressContext';
 import { useQuestionDb } from '../context/QuestionDbContext';
+import { generateExamReport } from '../services/pdfExportService';
+
 
 const ExamSimulator = () => {
   const { saveExamResult, saveAnswer } = useUserProgress();
@@ -351,7 +354,7 @@ const ExamSimulator = () => {
           </div>
         </div>
 
-        <div className="flex items-center justify-center gap-4">
+        <div className="flex flex-wrap items-center justify-center gap-4">
           <button
             onClick={() => {
               setIsFinished(false);
@@ -362,7 +365,25 @@ const ExamSimulator = () => {
             <RotateCcw className="w-4 h-4" />
             <span>Novo Simulado</span>
           </button>
+
+          <button
+            onClick={() => generateExamReport(
+              {
+                accuracyPct: examReport.scorePct,
+                totalQuestions: examReport.total,
+                correct: examReport.correctCount,
+                incorrect: examReport.incorrectCount,
+                avgTimeSec: examReport.durationSec ? Math.round(examReport.durationSec / examReport.total) : 0
+              },
+              examQuestions
+            )}
+            className="py-3.5 px-7 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center gap-2 transition-all shadow-lg active:scale-95 border border-emerald-400/30"
+          >
+            <FileDown className="w-4 h-4" />
+            <span>Exportar PDF</span>
+          </button>
         </div>
+
 
         <div className="space-y-6">
           <h3 className="text-lg font-bold text-white border-b border-white/10 pb-3">

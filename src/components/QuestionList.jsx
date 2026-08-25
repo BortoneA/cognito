@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, Inbox } from 'lucide-react';
 
 const QUESTIONS_PER_PAGE = 10;
 
-const QuestionList = ({ questions, onEditQuestion }) => {
+const QuestionList = ({ questions, onEditQuestion, onOpenNote }) => {
   const [currentPage, setCurrentPage] = useState(1);
 
   // Reset page when question set changes
@@ -63,9 +63,10 @@ const QuestionList = ({ questions, onEditQuestion }) => {
       {/* Questions Stack */}
       <div className="space-y-6">
         {currentQuestions.map(q => (
-          <QuestionCard key={q.id} question={q} onEditQuestion={onEditQuestion} />
+          <QuestionCard key={q.id} question={q} onEditQuestion={onEditQuestion} onOpenNote={onOpenNote} />
         ))}
       </div>
+
 
       {/* Bottom Pagination */}
       {totalPages > 1 && (

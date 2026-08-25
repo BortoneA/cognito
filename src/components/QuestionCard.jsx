@@ -1,29 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  CheckCircle2, 
-  XCircle, 
-  Bookmark, 
-  BookmarkCheck, 
-  Highlighter, 
-  Strikethrough, 
-  MessageSquare, 
-  Check, 
-  ChevronDown, 
-  ChevronUp, 
-  Share2, 
+import {
+  CheckCircle2,
+  XCircle,
+  Bookmark,
+  BookmarkCheck,
+  Highlighter,
+  Strikethrough,
+  MessageSquare,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Share2,
   BookOpen,
   Sparkles,
-  Edit3
+  Edit3,
+  StickyNote,
 } from 'lucide-react';
 import { useUserProgress } from '../context/UserProgressContext';
 
-const QuestionCard = ({ question, isSimulationMode = false, onAnswerSimulation, onEditQuestion }) => {
-  const { 
-    progress, 
-    saveAnswer, 
-    toggleSaveQuestion, 
-    saveNote, 
-    setHighlighterColor 
+const QuestionCard = ({ question, isSimulationMode = false, onAnswerSimulation, onEditQuestion, onOpenNote }) => {
+  const {
+    progress,
+    saveAnswer,
+    toggleSaveQuestion,
+    saveNote,
+    setHighlighterColor
   } = useUserProgress();
 
   const history = progress.answers?.[question.id];
@@ -171,9 +172,24 @@ const QuestionCard = ({ question, isSimulationMode = false, onAnswerSimulation, 
             <button
               onClick={() => onEditQuestion(question)}
               title="Editar Questão no Banco Local"
-              className="p-2 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-indigo-400 border border-white/10 transition-all text-xs flex items-center gap-1"
+              className="p-2 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-indigo-400 border border-white/10 transition-all text-xs flex items-center gap-1 touch-target"
             >
               <Edit3 className="w-4 h-4" />
+            </button>
+          )}
+
+          {/* Note Button */}
+          {onOpenNote && (
+            <button
+              onClick={() => onOpenNote(question)}
+              title="Anotação Pessoal"
+              className={`p-2 rounded-2xl border transition-all touch-target ${
+                (progress.notes || {})[question.id]
+                  ? 'bg-amber-500/20 border-amber-500/30 text-amber-300'
+                  : 'bg-white/5 hover:bg-amber-500/10 text-slate-400 hover:text-amber-300 border-white/10'
+              }`}
+            >
+              <StickyNote className="w-4 h-4" />
             </button>
           )}
 

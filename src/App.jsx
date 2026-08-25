@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserProgressProvider, useUserProgress } from './context/UserProgressContext';
 import { QuestionDbProvider, useQuestionDb } from './context/QuestionDbContext';
 import Navbar from './components/Navbar';
@@ -6,16 +6,21 @@ import Dashboard from './components/Dashboard';
 import QuestionFilter from './components/QuestionFilter';
 import QuestionList from './components/QuestionList';
 import ErrorNotebook from './components/ErrorNotebook';
-import DetailedAnalytics from './components/DetailedAnalytics';
 import FlashcardSystem from './components/FlashcardSystem';
 import ExamSimulator from './components/ExamSimulator';
+import DetailedAnalytics from './components/DetailedAnalytics';
+import AchievementsPanel from './components/AchievementsPanel';
+import AdaptiveStudyMode from './components/AdaptiveStudyMode';
+import DailyGoalBanner from './components/DailyGoalBanner';
 import DataManagementModal from './components/DataManagementModal';
 import QuestionEditorModal from './components/QuestionEditorModal';
 import QuickTestModal from './components/QuickTestModal';
+import QuestionNoteModal from './components/QuestionNoteModal';
 import { filterQuestions } from './data/questionsLoader';
+import { checkNewAchievements } from './services/achievementService';
 
 function MainApp() {
-  const { progress } = useUserProgress();
+  const { progress, unlockAchievement } = useUserProgress();
   const { questions } = useQuestionDb();
 
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -23,6 +28,9 @@ function MainApp() {
   const [isQuickTestOpen, setIsQuickTestOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState(null);
+  const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
+  const [noteQuestion, setNoteQuestion] = useState(null);
+  const [newAchievementToast, setNewAchievementToast] = useState(null);
 
   const [filters, setFilters] = useState({
     year: 'all',
@@ -35,11 +43,24 @@ function MainApp() {
 
   const filteredQuestions = filterQuestions(questions, filters, progress);
 
+  // Achievement checker
+  useEffect(() => {
+    const newOnes = checkNewAchievements(progress, progress.unlockedBadges || {});
+    if (newOnes.length > 0) {
+      newOnes.forEach(id => unlockAchievement(id));
+      // Show toast for first new achievement
+      import('./services/achievementService').then(({ ACHIEVEMENTS }) => {
+        const ach = ACHIEVEMENTS.find(a => a.id === newOnes[0]);
+        if (ach) {
+          setNewAchievementToast(ach);
+          setTimeout(() => setNewAchievementToast(null), 4000);
+        }
+      });
+    }
+  }, [Object.keys(progress.answers || {}).length, Object.keys(progress.dailyActivity || {}).length]);
+
   const handleSelectFilterFromDashboard = (newFilters) => {
-    setFilters(prev => ({
-      ...prev,
-      ...newFilters
-    }));
+    setFilters(prev => ({ ...prev, ...newFilters }));
     setActiveTab('questions');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -47,6 +68,11 @@ function MainApp() {
   const handleOpenEditQuestion = (question) => {
     setEditingQuestion(question);
     setIsEditModalOpen(true);
+  };
+
+  const handleOpenNote = (question) => {
+    setNoteQuestion(question);
+    setIsNoteModalOpen(true);
   };
 
   return (
@@ -59,14 +85,16 @@ function MainApp() {
         onOpenQuickTest={() => setIsQuickTestOpen(true)}
       />
 
+      {/* Daily Goal Banner */}
+      <DailyGoalBanner />
+
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {/* Tab 1: Dashboard Analytics */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8 main-with-bottom-nav">
+
         {activeTab === 'dashboard' && (
           <Dashboard onSelectFilter={handleSelectFilterFromDashboard} />
         )}
 
-        {/* Tab 2: Matriz Completa & Diagnóstico */}
         {activeTab === 'matrix' && (
           <DetailedAnalytics
             onOpenQuickTest={() => setIsQuickTestOpen(true)}
@@ -74,7 +102,6 @@ function MainApp() {
           />
         )}
 
-        {/* Tab 2: Banco de Questões */}
         {activeTab === 'questions' && (
           <div className="space-y-6">
             <QuestionFilter
@@ -86,30 +113,34 @@ function MainApp() {
             <QuestionList
               questions={filteredQuestions}
               onEditQuestion={handleOpenEditQuestion}
+              onOpenNote={handleOpenNote}
             />
           </div>
         )}
 
-        {/* Tab 3: Caderno de Erros */}
         {activeTab === 'errors' && (
-          <ErrorNotebook
-            onNavigateToQuestions={() => setActiveTab('questions')}
-          />
+          <ErrorNotebook onNavigateToQuestions={() => setActiveTab('questions')} />
         )}
 
-        {/* Tab 4: Flashcards Anki SM-2 */}
         {activeTab === 'flashcards' && (
           <FlashcardSystem />
         )}
 
-        {/* Tab 5: Simulados & Provas */}
+        {activeTab === 'adaptive' && (
+          <AdaptiveStudyMode />
+        )}
+
+        {activeTab === 'achievements' && (
+          <AchievementsPanel />
+        )}
+
         {activeTab === 'simulations' && (
           <ExamSimulator />
         )}
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-800/80 bg-slate-950 py-6 text-center text-xs text-slate-500">
+      <footer className="hidden md:block border-t border-slate-800/80 bg-slate-950 py-5 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p>© 2026 PNA MedPremium • Plataforma Inteligente de Questões de Residência Médica</p>
           <p className="font-medium text-slate-400">{questions.length} Questões PNA & Simulações Reclassificadas</p>
@@ -117,28 +148,41 @@ function MainApp() {
       </footer>
 
       {/* Modals */}
-      <DataManagementModal
-        isOpen={isDataModalOpen}
-        onClose={() => setIsDataModalOpen(false)}
-      />
+      <DataManagementModal isOpen={isDataModalOpen} onClose={() => setIsDataModalOpen(false)} />
 
       <QuestionEditorModal
         isOpen={isEditModalOpen}
-        onClose={() => {
-          setIsEditModalOpen(false);
-          setEditingQuestion(null);
-        }}
+        onClose={() => { setIsEditModalOpen(false); setEditingQuestion(null); }}
         questionToEdit={editingQuestion}
       />
 
       <QuickTestModal
         isOpen={isQuickTestOpen}
         onClose={() => setIsQuickTestOpen(false)}
-        onOpenEditModal={(q) => {
-          setIsQuickTestOpen(false);
-          handleOpenEditQuestion(q);
-        }}
+        onOpenEditModal={(q) => { setIsQuickTestOpen(false); handleOpenEditQuestion(q); }}
       />
+
+      <QuestionNoteModal
+        isOpen={isNoteModalOpen}
+        onClose={() => { setIsNoteModalOpen(false); setNoteQuestion(null); }}
+        question={noteQuestion}
+      />
+
+      {/* Achievement Toast Notification */}
+      {newAchievementToast && (
+        <div className="fixed bottom-[90px] md:bottom-6 left-4 right-4 md:left-auto md:right-6 md:max-w-sm z-[300] animate-fadeIn">
+          <div className="apple-glass rounded-3xl border border-amber-500/40 bg-amber-950/30 p-4 flex items-center gap-4 shadow-2xl shadow-amber-500/10">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-2xl shrink-0">
+              {newAchievementToast.icon}
+            </div>
+            <div>
+              <p className="text-[10px] font-extrabold text-amber-400 uppercase tracking-wider">🏆 Conquista Desbloqueada!</p>
+              <p className="text-sm font-black text-white">{newAchievementToast.title}</p>
+              <p className="text-xs text-slate-300">{newAchievementToast.description}</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

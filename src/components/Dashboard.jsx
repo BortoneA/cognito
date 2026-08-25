@@ -24,15 +24,18 @@ import {
 } from 'lucide-react';
 import StatCard from './StatCard';
 import ActivityHeatmap from './ActivityHeatmap';
+import ProgressTimeline from './ProgressTimeline';
+import CompetencyRadar from './CompetencyRadar';
 import { useUserProgress } from '../context/UserProgressContext';
 import { useQuestionDb } from '../context/QuestionDbContext';
-import { 
-  getOverviewKPIs, 
-  getAreaAnalytics, 
-  getSubareaAnalytics, 
+import {
+  getOverviewKPIs,
+  getAreaAnalytics,
+  getSubareaAnalytics,
   getYearlyAnalytics,
-  getWeaknessDiagnostics 
+  getWeaknessDiagnostics
 } from '../utils/analyticsHelpers';
+
 
 const Dashboard = ({ onSelectFilter }) => {
   const { progress } = useUserProgress();
@@ -148,6 +151,12 @@ const Dashboard = ({ onSelectFilter }) => {
 
       {/* Heatmap Activity Grid */}
       <ActivityHeatmap numWeeks={18} />
+
+      {/* Evolution Charts — Timeline + Radar */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <ProgressTimeline />
+        <CompetencyRadar />
+      </div>
 
       {/* Weakness Diagnostic Cards */}
       {weaknesses.length > 0 && (

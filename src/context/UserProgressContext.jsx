@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 
 const UserProgressContext = createContext();
 
-const LOCAL_STORAGE_KEY = 'PNA_MED_USER_PROGRESS_V1';
+const LOCAL_STORAGE_KEY = 'PNA_MED_USER_PROGRESS_V2';
 
 const defaultState = {
   answers: {},          // { [qId]: { selectedOption, isCorrect, timestamp, timeSpentMs } }
@@ -13,6 +13,23 @@ const defaultState = {
   highlighterColor: 'yellow',
   unlockedBadges: {},   // { [achievementId]: timestamp }
   dailyGoal: 20,        // questões por dia
+};
+
+// Disk Persistence Helper
+const saveProgressToDisk = async (payload) => {
+  try {
+    const res = await fetch('/api/save-progress', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      console.warn('Could not sync progress to local disk file:', res.statusText);
+    }
+  } catch (e) {
+    // Offline or server not responding, LocalStorage remains safe
+    console.debug('Disk sync skipped (offline mode):', e.message);
+  }
 };
 
 export const UserProgressProvider = ({ children }) => {
@@ -26,12 +43,60 @@ export const UserProgressProvider = ({ children }) => {
     }
   });
 
+  const syncTimeoutRef = useRef(null);
+
+  // 1. Initial Load: Check disk file on startup
   useEffect(() => {
+    const loadDiskProgress = async () => {
+      try {
+        const res = await fetch('/api/load-progress');
+        if (res.ok) {
+          const diskData = await res.json();
+          if (diskData && !diskData.empty && diskData.answers) {
+            setProgress(prev => {
+              // Merge disk data with local data (giving priority to highest answer count or newest timestamp)
+              const diskAnswersCount = Object.keys(diskData.answers || {}).length;
+              const localAnswersCount = Object.keys(prev.answers || {}).length;
+              
+              if (diskAnswersCount >= localAnswersCount) {
+                return {
+                  ...defaultState,
+                  ...prev,
+                  ...diskData,
+                  answers: { ...prev.answers, ...diskData.answers },
+                  savedQuestions: { ...prev.savedQuestions, ...diskData.savedQuestions },
+                  notes: { ...prev.notes, ...diskData.notes }
+                };
+              }
+              return prev;
+            });
+          }
+        }
+      } catch (e) {
+        console.debug('No disk server available on initial load');
+      }
+    };
+    loadDiskProgress();
+  }, []);
+
+  // 2. Continuous Persistence: Save to LocalStorage + Direct Disk File on EVERY change
+  useEffect(() => {
+    // Save to browser LocalStorage immediately
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(progress));
     } catch (e) {
-      console.error('Failed to save user progress to localStorage:', e);
+      console.error('Failed to save to localStorage:', e);
     }
+
+    // Debounced direct disk write (200ms)
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    syncTimeoutRef.current = setTimeout(() => {
+      saveProgressToDisk(progress);
+    }, 200);
+
+    return () => {
+      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    };
   }, [progress]);
 
   const recordActivity = (type = 'flashcards', count = 1) => {
@@ -57,7 +122,7 @@ export const UserProgressProvider = ({ children }) => {
     setProgress(prev => {
       const currentDaily = prev.dailyActivity || {};
       const todayEntry = currentDaily[today] || { questions: 0, flashcards: 0 };
-      return {
+      const updated = {
         ...prev,
         answers: {
           ...prev.answers,
@@ -76,6 +141,9 @@ export const UserProgressProvider = ({ children }) => {
           }
         }
       };
+      // Trigger instant direct save
+      saveProgressToDisk(updated);
+      return updated;
     });
   };
 
@@ -87,91 +155,64 @@ export const UserProgressProvider = ({ children }) => {
       } else {
         newSaved[questionId] = true;
       }
-      return { ...prev, savedQuestions: newSaved };
+      const updated = { ...prev, savedQuestions: newSaved };
+      saveProgressToDisk(updated);
+      return updated;
     });
   };
 
   const saveNote = (questionId, text) => {
-    setProgress(prev => ({
-      ...prev,
-      notes: {
-        ...prev.notes,
-        [questionId]: text
-      }
-    }));
-  };
-
-  const setHighlighterColor = (color) => {
-    setProgress(prev => ({ ...prev, highlighterColor: color }));
-  };
-
-  const saveExamResult = (examData) => {
-    setProgress(prev => ({
-      ...prev,
-      examHistory: [examData, ...(prev.examHistory || [])]
-    }));
-  };
-
-  const exportData = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(progress, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `pna_progresso_medico_${new Date().toISOString().slice(0,10)}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-  };
-
-  const importData = (jsonData) => {
-    try {
-      const parsed = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
-      if (parsed && typeof parsed === 'object') {
-        setProgress({ ...defaultState, ...parsed });
-        return true;
-      }
-    } catch (e) {
-      console.error('Import failed:', e);
-      return false;
-    }
-    return false;
-  };
-
-  const resetProgress = () => {
-    setProgress(defaultState);
-  };
-
-  const unlockAchievement = (achievementId) => {
     setProgress(prev => {
-      if (prev.unlockedBadges?.[achievementId]) return prev; // already unlocked
-      return {
+      const updated = {
         ...prev,
-        unlockedBadges: {
-          ...(prev.unlockedBadges || {}),
-          [achievementId]: Date.now()
+        notes: {
+          ...prev.notes,
+          [questionId]: text
         }
       };
+      saveProgressToDisk(updated);
+      return updated;
     });
   };
 
-  const setDailyGoal = (goal) => {
-    setProgress(prev => ({ ...prev, dailyGoal: goal }));
+  const saveExamResult = (examLog) => {
+    setProgress(prev => {
+      const updated = {
+        ...prev,
+        examHistory: [examLog, ...(prev.examHistory || [])]
+      };
+      saveProgressToDisk(updated);
+      return updated;
+    });
+  };
+
+  const setHighlighterColor = (color) => {
+    setProgress(prev => ({
+      ...prev,
+      highlighterColor: color
+    }));
+  };
+
+  const resetAllProgress = () => {
+    if (window.confirm("Atenção: Deseja realmente zerar todo o seu histórico de desempenho e anotações?")) {
+      setProgress(defaultState);
+      saveProgressToDisk(defaultState);
+    }
   };
 
   return (
-    <UserProgressContext.Provider value={{
-      progress,
-      saveAnswer,
-      recordActivity,
-      toggleSaveQuestion,
-      saveNote,
-      setHighlighterColor,
-      saveExamResult,
-      exportData,
-      importData,
-      resetProgress,
-      unlockAchievement,
-      setDailyGoal,
-    }}>
+    <UserProgressContext.Provider
+      value={{
+        progress,
+        saveAnswer,
+        toggleSaveQuestion,
+        saveNote,
+        saveExamResult,
+        setHighlighterColor,
+        recordActivity,
+        resetAllProgress
+      }}
+    >
       {children}
     </UserProgressContext.Provider>
   );

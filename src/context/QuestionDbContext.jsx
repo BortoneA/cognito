@@ -146,10 +146,21 @@ export const QuestionDbProvider = ({ children }) => {
     }
   };
 
-  // Save/Edit a question with immediate real-time synchronization
+  // Save/Edit a question with immediate real-time synchronization and direct disk persistence
   const editQuestion = async (updatedQuestion) => {
     const saved = await saveLocalQuestionEdit(updatedQuestion);
     if (!saved) return false;
+
+    // Direct Disk File Write to local project folder
+    try {
+      fetch('/api/save-question', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(saved)
+      });
+    } catch (e) {
+      console.debug('Disk save question fallback');
+    }
 
     setLocalEditsMap(prev => ({
       ...prev,

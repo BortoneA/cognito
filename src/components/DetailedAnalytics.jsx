@@ -5,6 +5,7 @@ import {
   Filter, 
   AlertTriangle, 
   CheckCircle2, 
+  XCircle, 
   Layers, 
   PieChart as PieIcon, 
   Zap, 
@@ -12,21 +13,34 @@ import {
   BookOpen, 
   ShieldCheck, 
   Sparkles,
-  Database
+  Database,
+  Clock,
+  Flame,
+  Target,
+  ChevronRight,
+  RotateCcw,
+  Tag,
+  TrendingUp,
+  Brain
 } from 'lucide-react';
 import { useQuestionDb } from '../context/QuestionDbContext';
 import { useUserProgress } from '../context/UserProgressContext';
-import { getFullDistributionStats, getQuickTestDiagnostics } from '../utils/analyticsHelpers';
+import { 
+  getOverviewKPIs, 
+  getFullDistributionStats, 
+  getWeaknessPointsToReinforce 
+} from '../utils/analyticsHelpers';
 
 const DetailedAnalytics = ({ onOpenQuickTest, onSelectFilter }) => {
   const { questions, localEditsCount } = useQuestionDb();
   const { progress } = useUserProgress();
   const userAnswers = progress.answers || {};
 
+  const kpis = getOverviewKPIs(questions, progress);
   const stats = getFullDistributionStats(questions, userAnswers);
-  const diagnostics = getQuickTestDiagnostics(questions, userAnswers);
+  const weakness = getWeaknessPointsToReinforce(questions, userAnswers);
 
-  const [activeTab, setActiveTab] = useState('areas'); // 'areas' | 'subareas' | 'difficulties' | 'errors'
+  const [activeTab, setActiveTab] = useState('weaknesses'); // 'weaknesses' | 'error_book' | 'areas' | 'subareas' | 'speed'
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAreaFilter, setSelectedAreaFilter] = useState('all');
 
@@ -44,186 +58,444 @@ const DetailedAnalytics = ({ onOpenQuickTest, onSelectFilter }) => {
     <div className="space-y-8 animate-fadeIn pb-12">
       
       {/* Header Banner */}
-      <div className="rounded-[36px] apple-glass p-6 sm:p-8 border border-white/10 shadow-2xl relative overflow-hidden">
-        <div className="absolute -right-16 -top-16 w-64 h-64 rounded-full bg-gradient-to-tr from-indigo-500/20 via-purple-500/20 to-pink-500/20 blur-3xl pointer-events-none" />
+      <div className="rounded-[36px] apple-glass p-6 sm:p-8 border border-white/10 shadow-2xl relative overflow-hidden specular-highlight">
+        <div className="absolute -right-16 -top-16 w-72 h-72 rounded-full bg-gradient-to-tr from-indigo-500/20 via-purple-500/20 to-pink-500/20 blur-3xl pointer-events-none" />
 
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <span className="px-3 py-1 rounded-full text-[10px] font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 uppercase tracking-wider">
-                Relatório de Cobertura Total
+                Inteligência Analítica & Diagnóstico PNA
               </span>
               <span className="px-3 py-1 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
                 <ShieldCheck className="w-3.5 h-3.5" />
-                Integrado com Banco Local
+                Banco de 5.073 Questões
               </span>
             </div>
 
             <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              Matriz de Distribuição & Diagnóstico de Erros
+              Análise de Desempenho & Pontos a Reforçar
             </h1>
-            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-normal">
-              Análise completa de todas as 15+ Áreas, Subespecialidades, Níveis de Dificuldade e Diagnóstico de Lacunas do Teste Rápido.
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-normal max-w-2xl">
+              Diagnóstico preciso de erros, acertos por subárea médica, velocidade de resolução e mapeamento de lacunas cognitivas para a Prova Nacional de Acesso.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={onOpenQuickTest}
-              className="px-5 py-3 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-white text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-all hover:scale-105"
+              className="px-5 py-3 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-white text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-amber-500/25 transition-all hover:scale-105 active:scale-95"
             >
               <Zap className="w-4 h-4 fill-white" />
-              <span>Iniciar Teste Rápido Express</span>
+              <span>Treinar na Fila Express</span>
             </button>
           </div>
         </div>
 
-        {/* Database Sync Status Chip */}
-        <div className="mt-6 pt-5 border-t border-white/10 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400">
-          <div className="flex items-center gap-2">
-            <Database className="w-4 h-4 text-indigo-400" />
-            <span>Banco Ativo: <strong className="text-white">{questions.length} questões</strong> (IndexedDB / LocalStorage)</span>
+        {/* Global KPIs Bar */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-white/10">
+          <div className="p-4 rounded-2xl bg-slate-900/60 border border-white/5 space-y-1">
+            <div className="flex items-center justify-between text-slate-400 text-xs">
+              <span>Taxa de Acertos</span>
+              <Target className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div className="text-2xl font-black text-white">
+              {kpis.accuracyPct}%
+            </div>
+            <div className="text-[11px] text-slate-400">
+              <strong className="text-emerald-400">{kpis.totalCorrect}</strong> corretas de {kpis.totalAnswered}
+            </div>
           </div>
 
-          {localEditsCount > 0 && (
-            <span className="px-3 py-1 rounded-xl bg-amber-500/15 text-amber-300 border border-amber-500/30 font-bold text-[11px]">
-              ✏️ {localEditsCount} edições locais sincronizadas
-            </span>
-          )}
+          <div className="p-4 rounded-2xl bg-slate-900/60 border border-white/5 space-y-1">
+            <div className="flex items-center justify-between text-slate-400 text-xs">
+              <span>Caderno de Erros</span>
+              <AlertTriangle className="w-4 h-4 text-rose-400" />
+            </div>
+            <div className="text-2xl font-black text-rose-400">
+              {kpis.totalIncorrect}
+            </div>
+            <div className="text-[11px] text-slate-400">
+              {kpis.totalIncorrect === 0 ? 'Nenhum erro registrado' : 'Necessitam de revisão'}
+            </div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-slate-900/60 border border-white/5 space-y-1">
+            <div className="flex items-center justify-between text-slate-400 text-xs">
+              <span>Tempo Médio / Questão</span>
+              <Clock className="w-4 h-4 text-indigo-400" />
+            </div>
+            <div className="text-2xl font-black text-white">
+              {kpis.avgTimePerQuestionSec}s
+            </div>
+            <div className="text-[11px] text-slate-400">
+              {kpis.avgTimePerQuestionSec <= 90 ? '✓ Dentro da meta PNA (90s)' : '⚠️ Acima da meta PNA'}
+            </div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-slate-900/60 border border-white/5 space-y-1">
+            <div className="flex items-center justify-between text-slate-400 text-xs">
+              <span>Escore PNA Estimado</span>
+              <TrendingUp className="w-4 h-4 text-purple-400" />
+            </div>
+            <div className="text-2xl font-black bg-gradient-to-r from-purple-400 to-indigo-300 bg-clip-text text-transparent">
+              {kpis.estimatedPnaScore} / 100
+            </div>
+            <div className="text-[11px] text-slate-400">
+              Baseado na seriação atual
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Segmented Tab Navigation */}
+      {/* Segmented Navigation Tabs */}
       <div className="flex items-center gap-2 apple-segmented-bg p-1.5 overflow-x-auto scrollbar-none">
         <button
-          onClick={() => setActiveTab('areas')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all ${
-            activeTab === 'areas' ? 'apple-segmented-item-active' : 'text-slate-400 hover:text-white'
+          onClick={() => setActiveTab('weaknesses')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all whitespace-nowrap ${
+            activeTab === 'weaknesses' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' : 'text-slate-400 hover:text-white'
           }`}
         >
-          <PieIcon className="w-4 h-4" />
-          <span>Distribuição por Áreas ({stats.areas.length})</span>
+          <AlertTriangle className="w-4 h-4 text-amber-400" />
+          <span>Pontos a Reforçar ({weakness.criticalWeakSubareas.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('error_book')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all whitespace-nowrap ${
+            activeTab === 'error_book' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <XCircle className="w-4 h-4 text-rose-400" />
+          <span>Caderno de Erros ({weakness.totalWrongCount})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('areas')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all whitespace-nowrap ${
+            activeTab === 'areas' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <Layers className="w-4 h-4 text-indigo-400" />
+          <span>15 Grandes Áreas</span>
         </button>
 
         <button
           onClick={() => setActiveTab('subareas')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all ${
-            activeTab === 'subareas' ? 'apple-segmented-item-active' : 'text-slate-400 hover:text-white'
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all whitespace-nowrap ${
+            activeTab === 'subareas' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' : 'text-slate-400 hover:text-white'
           }`}
         >
-          <Layers className="w-4 h-4" />
-          <span>Todas as Subárea ({stats.subareas.length})</span>
+          <Tag className="w-4 h-4 text-purple-400" />
+          <span>Arsenal 300 Subáreas</span>
         </button>
 
         <button
-          onClick={() => setActiveTab('difficulties')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all ${
-            activeTab === 'difficulties' ? 'apple-segmented-item-active' : 'text-slate-400 hover:text-white'
+          onClick={() => setActiveTab('speed')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all whitespace-nowrap ${
+            activeTab === 'speed' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' : 'text-slate-400 hover:text-white'
           }`}
         >
-          <BarChart3 className="w-4 h-4" />
-          <span>Níveis de Dificuldade ({stats.difficulties.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('errors')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all ${
-            activeTab === 'errors' ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/30' : 'text-rose-400 hover:bg-rose-500/10'
-          }`}
-        >
-          <AlertTriangle className="w-4 h-4" />
-          <span>Pontos Fracos do Teste Rápido ({diagnostics.totalErrors})</span>
+          <Clock className="w-4 h-4 text-cyan-400" />
+          <span>Tempo & Eficiência</span>
         </button>
       </div>
 
-      {/* TAB 1: AREAS BREAKDOWN */}
+      {/* TAB 1: PONTOS A REFORÇAR (CRITICAL WEAKNESS RADAR) */}
+      {activeTab === 'weaknesses' && (
+        <div className="space-y-6 animate-fadeIn">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-black text-white flex items-center gap-2">
+                <Brain className="w-5 h-5 text-amber-400" />
+                <span>Radar Diagnóstico: Subáreas com Maior Risco</span>
+              </h3>
+              <p className="text-xs text-slate-400">
+                Subespecialidades com maior incidência de erros e baixa taxa de acerto detectadas nas suas resoluções.
+              </p>
+            </div>
+          </div>
+
+          {weakness.criticalWeakSubareas.length === 0 ? (
+            <div className="p-12 rounded-3xl apple-card border border-white/10 text-center space-y-3">
+              <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto" />
+              <h4 className="text-base font-extrabold text-white">Nenhum Ponto Crítico Detectado!</h4>
+              <p className="text-xs text-slate-400 max-w-md mx-auto">
+                Você ainda não possui erros acumulados em subáreas específicas. Continue resolvendo questões para calibrar o diagnóstico inteligente.
+              </p>
+              <button
+                onClick={onOpenQuickTest}
+                className="mt-4 px-6 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all"
+              >
+                Praticar Questões Agora
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {weakness.criticalWeakSubareas.map(sub => (
+                <div 
+                  key={sub.key}
+                  className="p-5 rounded-3xl apple-card border border-rose-500/20 bg-gradient-to-br from-rose-950/20 via-slate-900/80 to-slate-900/90 shadow-xl space-y-4 hover:border-rose-500/40 transition-all"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-rose-400 bg-rose-500/10 px-2.5 py-0.5 rounded-full border border-rose-500/20">
+                        {sub.area}
+                      </span>
+                      <h4 className="text-sm font-bold text-white leading-snug">
+                        {sub.name}
+                      </h4>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <div className="text-lg font-black text-rose-400">
+                        {sub.accuracyPct}%
+                      </div>
+                      <div className="text-[10px] text-slate-400">acertos</div>
+                    </div>
+                  </div>
+
+                  {/* Stats Mini Bar */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px] text-slate-400">
+                      <span>Erros registrados: <strong className="text-rose-400">{sub.incorrect}</strong> de {sub.answered} feitas</span>
+                      <span>Total no banco: <strong>{sub.total}</strong></span>
+                    </div>
+                    <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden flex">
+                      <div 
+                        className="bg-emerald-500 h-full transition-all duration-500" 
+                        style={{ width: `${sub.accuracyPct}%` }}
+                      />
+                      <div 
+                        className="bg-rose-500 h-full transition-all duration-500" 
+                        style={{ width: `${100 - sub.accuracyPct}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-white/5 flex items-center justify-between">
+                    <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>{sub.avgTimeSec}s / questão</span>
+                    </span>
+
+                    {onSelectFilter && (
+                      <button
+                        onClick={() => onSelectFilter({ area: sub.area, subarea: sub.name, status: 'all' })}
+                        className="px-3.5 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-xs font-extrabold flex items-center gap-1 transition-all active:scale-95"
+                      >
+                        <span>Treinar Esta Subárea</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 2: CADERNO INTELIGENTE DE ERROS */}
+      {activeTab === 'error_book' && (
+        <div className="space-y-6 animate-fadeIn">
+          <div>
+            <h3 className="text-lg font-black text-white flex items-center gap-2">
+              <XCircle className="w-5 h-5 text-rose-400" />
+              <span>Caderno de Revisão de Erros</span>
+            </h3>
+            <p className="text-xs text-slate-400">
+              Reveja detalhadamente cada questão em que você assinalou uma alternativa incorreta.
+            </p>
+          </div>
+
+          {weakness.wrongQuestionsList.length === 0 ? (
+            <div className="p-12 rounded-3xl apple-card border border-white/10 text-center space-y-3">
+              <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto" />
+              <h4 className="text-base font-extrabold text-white">Caderno de Erros Vazio!</h4>
+              <p className="text-xs text-slate-400 max-w-md mx-auto">
+                Parabéns! Todas as questões respondidas até o momento foram acertadas.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {weakness.wrongQuestionsList.map((q, idx) => (
+                <div 
+                  key={q.id}
+                  className="p-6 rounded-3xl apple-card border border-white/10 space-y-4 shadow-xl"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="px-3 py-1 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-black">
+                        #{idx + 1} • {q.id}
+                      </span>
+                      <span className="px-3 py-1 rounded-xl bg-white/5 text-slate-300 text-xs font-bold">
+                        {q.area}
+                      </span>
+                      <span className="px-3 py-1 rounded-xl bg-white/5 text-slate-400 text-xs font-medium">
+                        {q.subarea}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-rose-400 font-bold bg-rose-500/10 px-2.5 py-1 rounded-lg">
+                        Sua Resposta: {q.userSelectedOption || 'N/A'}
+                      </span>
+                      <span className="text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-1 rounded-lg">
+                        Gabarito: {q.resposta_correta}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="text-xs sm:text-sm text-slate-100 leading-relaxed font-normal">
+                    {q.enunciado}
+                  </p>
+
+                  <div className="p-4 rounded-2xl bg-slate-900/90 border border-white/10 space-y-2">
+                    <h5 className="text-[11px] font-black uppercase text-indigo-400 tracking-wider">
+                      Resolução Comentada Oficial
+                    </h5>
+                    <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-line">
+                      {q.explicacao}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 3: 15 GRANDES ÁREAS */}
       {activeTab === 'areas' && (
-        <div className="space-y-4">
-          <h3 className="text-base font-extrabold text-white flex items-center justify-between">
-            <span>Distribuição de Questões por Área Médica</span>
-            <span className="text-xs text-slate-400 font-normal">Total: {questions.length} questões</span>
+        <div className="space-y-6 animate-fadeIn">
+          <h3 className="text-lg font-black text-white flex items-center gap-2">
+            <Layers className="w-5 h-5 text-indigo-400" />
+            <span>Desempenho por Especialidade Médica (15 Áreas)</span>
           </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {stats.areas.map(area => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {stats.areas.map(a => (
               <div 
-                key={area.name}
-                className="p-5 rounded-3xl apple-card border border-white/10 space-y-3 hover:border-indigo-500/40 transition-all cursor-pointer"
-                onClick={() => onSelectFilter({ area: area.name })}
+                key={a.name}
+                className="p-5 rounded-3xl apple-card border border-white/10 space-y-4 shadow-xl hover:border-indigo-500/40 transition-all"
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-extrabold text-white text-sm">{area.name}</span>
-                  <span className="px-3 py-1 rounded-xl bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 text-xs font-black">
-                    {area.total} questões ({area.sharePct}%)
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h4 className="text-sm font-extrabold text-white">
+                      {a.name}
+                    </h4>
+                    <span className="text-[11px] text-slate-400 font-medium">
+                      {a.total} questões no banco ({a.sharePct}%)
+                    </span>
+                  </div>
+
+                  <span className={`px-2.5 py-1 rounded-xl text-xs font-black ${
+                    a.accuracyPct >= 80 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                    a.accuracyPct >= 60 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                    a.answered > 0 ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' :
+                    'bg-slate-800 text-slate-400'
+                  }`}>
+                    {a.answered > 0 ? `${a.accuracyPct}%` : 'Não feita'}
                   </span>
                 </div>
 
                 {/* Progress Bar */}
-                <div className="w-full bg-slate-900 rounded-full h-2.5 overflow-hidden border border-white/5">
-                  <div 
-                    className="bg-gradient-to-r from-indigo-500 to-purple-500 h-full rounded-full transition-all duration-500"
-                    style={{ width: `${Math.min(100, area.sharePct * 3)}%` }}
-                  />
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-[10px] text-slate-400">
+                    <span>{a.answered} respondidas</span>
+                    <span>{a.correct} acertos • {a.incorrect} erros</span>
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+                    <div 
+                      className="bg-indigo-500 h-full rounded-full transition-all duration-500" 
+                      style={{ width: `${(a.answered / a.total) * 100}%` }}
+                    />
+                  </div>
                 </div>
 
-                <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
-                  <span>Respondidas: <strong className="text-white">{area.answered}</strong> / {area.total}</span>
-                  <span className="text-emerald-400 font-bold">Acurácia: {area.accuracyPct}%</span>
-                </div>
+                {onSelectFilter && (
+                  <button
+                    onClick={() => onSelectFilter({ area: a.name, subarea: 'all', status: 'all' })}
+                    className="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-bold text-slate-300 hover:text-white transition-all flex items-center justify-center gap-1"
+                  >
+                    <span>Filtrar Questões de {a.name}</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* TAB 2: SUBAREAS BREAKDOWN */}
+      {/* TAB 4: MATRIZ DE 300 SUBÁREAS */}
       {activeTab === 'subareas' && (
-        <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            {/* Search Input */}
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+        <div className="space-y-6 animate-fadeIn">
+          
+          {/* Filter & Search Bar */}
+          <div className="p-4 rounded-3xl apple-card border border-white/10 flex flex-col sm:flex-row items-center gap-3">
+            <div className="relative flex-1 w-full">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar subárea ou tópico (Ex: Diabetes, Eletrocardiograma, Nefrologia)..."
-                className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-900/90 border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-all"
+                placeholder="Buscar subárea, patologia ou especialidade..."
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-900/90 border border-white/10 rounded-2xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
               />
             </div>
 
-            {/* Area Filter */}
             <select
               value={selectedAreaFilter}
               onChange={(e) => setSelectedAreaFilter(e.target.value)}
-              className="px-4 py-2.5 rounded-2xl bg-slate-900/90 border border-white/10 text-xs text-white focus:outline-none focus:border-indigo-500"
+              className="w-full sm:w-auto px-4 py-2.5 bg-slate-900/90 border border-white/10 rounded-2xl text-xs text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
             >
-              <option value="all">Todas as Áreas ({stats.areas.length})</option>
+              <option value="all">Todas as Especialidades</option>
               {stats.areas.map(a => (
                 <option key={a.name} value={a.name}>{a.name}</option>
               ))}
             </select>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="text-xs text-slate-400">
+            Exibindo <strong>{filteredSubareas.length}</strong> subáreas clínicas
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {filteredSubareas.map(sub => (
               <div 
-                key={sub.fullKey}
-                className="p-4 rounded-2xl apple-card border border-white/5 space-y-2 hover:border-indigo-500/30 transition-all"
+                key={sub.key}
+                className="p-4 rounded-2xl apple-card border border-white/10 space-y-2 hover:border-indigo-500/40 transition-all flex flex-col justify-between"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h4 className="font-bold text-white text-xs">{sub.name}</h4>
-                    <span className="text-[10px] text-slate-400 font-medium">{sub.area}</span>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-indigo-400 uppercase">
+                      {sub.area}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      {sub.total} q.
+                    </span>
                   </div>
-                  <span className="px-2.5 py-0.5 rounded-lg bg-white/5 text-slate-300 font-mono text-[10px] font-bold border border-white/10">
-                    {sub.total} q ({sub.sharePct}%)
-                  </span>
+                  <h5 className="text-xs font-bold text-white leading-snug">
+                    {sub.name}
+                  </h5>
                 </div>
 
-                <div className="flex items-center justify-between text-[11px] pt-1 text-slate-400 border-t border-white/5">
-                  <span>Respostas: <strong className="text-white">{sub.answered}</strong></span>
-                  <span className="text-emerald-400 font-bold">{sub.accuracyPct}% Acurácia</span>
+                <div className="pt-2 border-t border-white/5 flex items-center justify-between text-[11px]">
+                  <span className={sub.proficiencyColor}>
+                    {sub.answered > 0 ? `${sub.accuracyPct}% acertos (${sub.correct}/${sub.answered})` : 'Pendente'}
+                  </span>
+
+                  {onSelectFilter && (
+                    <button
+                      onClick={() => onSelectFilter({ area: sub.area, subarea: sub.name, status: 'all' })}
+                      className="text-xs font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-0.5"
+                    >
+                      <span>Ver</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -231,92 +503,35 @@ const DetailedAnalytics = ({ onOpenQuickTest, onSelectFilter }) => {
         </div>
       )}
 
-      {/* TAB 3: DIFFICULTY BREAKDOWN */}
-      {activeTab === 'difficulties' && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-          {stats.difficulties.map(diff => {
-            const isEasy = diff.name.toLowerCase().includes('fácil');
-            const isHard = diff.name.toLowerCase().includes('difícil');
-            const style = isEasy 
-              ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-300' 
-              : isHard 
-              ? 'bg-rose-950/30 border-rose-500/40 text-rose-300' 
-              : 'bg-amber-950/30 border-amber-500/40 text-amber-300';
+      {/* TAB 5: TEMPO & EFICIÊNCIA */}
+      {activeTab === 'speed' && (
+        <div className="space-y-6 animate-fadeIn">
+          <div className="p-6 rounded-3xl apple-card border border-white/10 space-y-4">
+            <h3 className="text-lg font-black text-white flex items-center gap-2">
+              <Clock className="w-5 h-5 text-cyan-400" />
+              <span>Gestão do Tempo & Velocidade Diagnóstica</span>
+            </h3>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Na Prova Nacional de Acesso (PNA), o tempo disponível médio por questão é de aproximadamente <strong>90 segundos (1,5 minutos)</strong>. Manter um ritmo controlado é essencial para garantir a revisão dos casos clínicos mais complexos.
+            </p>
 
-            return (
-              <div key={diff.name} className={`p-6 rounded-3xl apple-card border space-y-4 ${style}`}>
-                <div className="flex items-center justify-between">
-                  <span className="font-extrabold text-white text-base uppercase tracking-wider">{diff.name}</span>
-                  <span className="px-3 py-1 rounded-xl bg-white/10 font-black text-xs">
-                    {diff.sharePct}% do Banco
-                  </span>
-                </div>
-
-                <div className="space-y-1">
-                  <p className="text-3xl font-black text-white">{diff.total}</p>
-                  <p className="text-xs text-slate-400">Questões nesta dificuldade</p>
-                </div>
-
-                <div className="pt-3 border-t border-white/10 flex items-center justify-between text-xs">
-                  <span>Respondidas: <strong className="text-white">{diff.answered}</strong></span>
-                  <span className="font-extrabold">Acurácia: {diff.accuracyPct}%</span>
-                </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-white/10">
+              <div className="p-4 rounded-2xl bg-slate-900/60 border border-white/5">
+                <span className="text-xs text-slate-400 block">Tempo Médio Registrado</span>
+                <span className="text-2xl font-black text-white">{kpis.avgTimePerQuestionSec} segundos</span>
               </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* TAB 4: QUICK TEST DIAGNOSTICS & WEAK POINTS */}
-      {activeTab === 'errors' && (
-        <div className="space-y-6">
-          <div className="p-6 rounded-3xl apple-glass border border-rose-500/30 bg-rose-950/20 space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center font-bold">
-                <AlertTriangle className="w-5 h-5" />
+              <div className="p-4 rounded-2xl bg-slate-900/60 border border-white/5">
+                <span className="text-xs text-slate-400 block">Meta Oficial PNA</span>
+                <span className="text-2xl font-black text-emerald-400">90 segundos</span>
               </div>
-              <div>
-                <h3 className="text-base font-extrabold text-white">Diagnóstico de Pontos Fracos do Teste Rápido</h3>
-                <p className="text-xs text-rose-300">Identificação automática dos temas clínicos em que você cometeu erros</p>
+              <div className="p-4 rounded-2xl bg-slate-900/60 border border-white/5">
+                <span className="text-xs text-slate-400 block">Status de Agilidade</span>
+                <span className="text-2xl font-black text-purple-400">
+                  {kpis.avgTimePerQuestionSec <= 90 ? '⚡ Ritmo Ideal' : '⚠️ Ritmo Lento'}
+                </span>
               </div>
             </div>
           </div>
-
-          {diagnostics.weakPoints.length === 0 ? (
-            <div className="p-12 text-center rounded-3xl apple-card border border-white/10 space-y-3">
-              <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto" />
-              <h4 className="text-base font-bold text-white">Nenhum Erro Registrado Ainda!</h4>
-              <p className="text-xs text-slate-400">Inicie um Teste Rápido para que a IA analise seus padrões de erro e recomende pontos fracos a reforçar.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {diagnostics.weakPoints.map((item, idx) => (
-                <div key={item.key} className="p-5 rounded-3xl apple-card border border-white/10 space-y-4 hover:border-rose-500/40 transition-all">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{item.area}</span>
-                      <h4 className="font-extrabold text-white text-sm">{item.theme}</h4>
-                    </div>
-                    <span className="px-3 py-1 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-black shrink-0">
-                      {item.errorCount} {item.errorCount === 1 ? 'Erro' : 'Erros'}
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-slate-300 leading-relaxed bg-slate-900/60 p-3 rounded-2xl border border-white/5">
-                    📌 <strong>Recomendação Médica:</strong> Revisar a fisiopatologia, critérios diagnósticos e condutas terapêuticas de <em>{item.theme}</em>.
-                  </p>
-
-                  <button
-                    onClick={onOpenQuickTest}
-                    className="w-full py-2.5 rounded-2xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-200 text-xs font-extrabold flex items-center justify-center gap-2 transition-all"
-                  >
-                    <span>Treinar {item.theme} no Teste Rápido</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       )}
 

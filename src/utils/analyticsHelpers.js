@@ -1,8 +1,8 @@
 /**
- * Analytical helpers to calculate statistics and format data for Recharts components
+ * Advanced Medical Analytics & Clinical Performance Diagnostic Engine
  */
 
-export const getOverviewKPIs = (questions, userProgress = {}) => {
+export const getOverviewKPIs = (questions = [], userProgress = {}) => {
   const totalQuestions = questions.length;
   const answersMap = userProgress.answers || {};
   const savedMap = userProgress.savedQuestions || {};
@@ -30,6 +30,11 @@ export const getOverviewKPIs = (questions, userProgress = {}) => {
     ? Math.round((totalTimeMs / totalAnswered) / 1000) 
     : 0;
 
+  // Estimated PNA Score (scale 0-100)
+  const estimatedPnaScore = totalAnswered >= 10
+    ? Math.round(accuracyPct * 0.95 + (totalAnswered / totalQuestions) * 5)
+    : accuracyPct;
+
   return {
     totalQuestions,
     totalAnswered,
@@ -38,17 +43,18 @@ export const getOverviewKPIs = (questions, userProgress = {}) => {
     totalUnanswered: totalQuestions - totalAnswered,
     accuracyPct,
     totalSaved,
-    avgTimePerQuestionSec
+    avgTimePerQuestionSec,
+    estimatedPnaScore
   };
 };
 
-export const getAreaAnalytics = (questions, userAnswers = {}) => {
+export const getAreaAnalytics = (questions = [], userAnswers = {}) => {
   const areaStats = {};
 
   questions.forEach(q => {
     const area = q.area || "Outros";
     if (!areaStats[area]) {
-      areaStats[area] = { area, total: 0, correct: 0, incorrect: 0, unanswered: 0 };
+      areaStats[area] = { area, total: 0, correct: 0, incorrect: 0, unanswered: 0, totalTimeMs: 0 };
     }
 
     areaStats[area].total += 1;
@@ -56,6 +62,7 @@ export const getAreaAnalytics = (questions, userAnswers = {}) => {
     if (ans) {
       if (ans.isCorrect) areaStats[area].correct += 1;
       else areaStats[area].incorrect += 1;
+      if (ans.timeSpentMs) areaStats[area].totalTimeMs += ans.timeSpentMs;
     } else {
       areaStats[area].unanswered += 1;
     }
@@ -65,64 +72,192 @@ export const getAreaAnalytics = (questions, userAnswers = {}) => {
     .map(item => {
       const answered = item.correct + item.incorrect;
       const accuracy = answered > 0 ? Math.round((item.correct / answered) * 100) : 0;
+      const avgSec = answered > 0 ? Math.round((item.totalTimeMs / answered) / 1000) : 0;
+      
+      let status = 'untested';
+      if (answered > 0) {
+        if (accuracy >= 80) status = 'mastered';
+        else if (accuracy >= 60) status = 'moderate';
+        else status = 'critical';
+      }
+
       return {
         ...item,
         answered,
-        accuracyPct: accuracy
+        accuracyPct: accuracy,
+        avgTimeSec: avgSec,
+        status
       };
     })
     .sort((a, b) => b.total - a.total);
 };
 
-export const getSubareaAnalytics = (questions, userAnswers = {}, limit = 15) => {
+export const getSubareaDetailedAnalytics = (questions = [], userAnswers = {}) => {
   const subareaStats = {};
 
   questions.forEach(q => {
     const subarea = q.subarea || "Geral";
-    if (!subareaStats[subarea]) {
-      subareaStats[subarea] = { 
-        subarea, 
-        area: q.area || "Geral", 
-        total: 0, 
-        correct: 0, 
-        incorrect: 0, 
-        unanswered: 0 
+    const area = q.area || "Geral";
+    const key = `${area} › ${subarea}`;
+
+    if (!subareaStats[key]) {
+      subareaStats[key] = {
+        key,
+        name: subarea,
+        area,
+        total: 0,
+        answered: 0,
+        correct: 0,
+        incorrect: 0,
+        unanswered: 0,
+        totalTimeMs: 0,
+        questionsList: []
       };
     }
 
-    subareaStats[subarea].total += 1;
+    subareaStats[key].total += 1;
+    subareaStats[key].questionsList.push(q);
+
     const ans = userAnswers[q.id];
     if (ans) {
-      if (ans.isCorrect) subareaStats[subarea].correct += 1;
-      else subareaStats[subarea].incorrect += 1;
+      subareaStats[key].answered += 1;
+      if (ans.isCorrect) subareaStats[key].correct += 1;
+      else subareaStats[key].incorrect += 1;
+      if (ans.timeSpentMs) subareaStats[key].totalTimeMs += ans.timeSpentMs;
     } else {
-      subareaStats[subarea].unanswered += 1;
+      subareaStats[key].unanswered += 1;
     }
   });
 
-  return Object.values(subareaStats)
-    .map(item => {
-      const answered = item.correct + item.incorrect;
-      const accuracy = answered > 0 ? Math.round((item.correct / answered) * 100) : 0;
-      return {
-        ...item,
-        answered,
-        accuracyPct: accuracy
-      };
-    })
+  return Object.values(subareaStats).map(s => {
+    const accuracy = s.answered > 0 ? Math.round((s.correct / s.answered) * 100) : 0;
+    const avgSec = s.answered > 0 ? Math.round((s.totalTimeMs / s.answered) / 1000) : 0;
+    
+    let proficiency = 'Não Testada';
+    let proficiencyColor = 'text-slate-400';
+    let priorityScore = 0; // Higher means more urgent to reinforce
+
+    if (s.answered > 0) {
+      if (accuracy >= 80) {
+        proficiency = 'Excelente Domínio';
+        proficiencyColor = 'text-emerald-400';
+      } else if (accuracy >= 60) {
+        proficiency = 'Regular / Atenção';
+        proficiencyColor = 'text-amber-400';
+        priorityScore = s.incorrect * 2;
+      } else {
+        proficiency = 'Ponto Crítico de Reforço';
+        proficiencyColor = 'text-rose-400';
+        priorityScore = s.incorrect * 4 + (s.total - s.answered);
+      }
+    } else {
+      priorityScore = 1;
+    }
+
+    return {
+      ...s,
+      accuracyPct: accuracy,
+      avgTimeSec: avgSec,
+      proficiency,
+      proficiencyColor,
+      priorityScore
+    };
+  });
+};
+
+/**
+ * Diagnostic Analysis specifically detecting Critical Weak Points & Topics to Reinforce
+ */
+export const getWeaknessPointsToReinforce = (questions = [], userAnswers = {}) => {
+  const subareaAnalytics = getSubareaDetailedAnalytics(questions, userAnswers);
+
+  // Focus on subareas with errors or low accuracy
+  const weakPoints = subareaAnalytics
+    .filter(s => s.incorrect > 0 || (s.answered >= 2 && s.accuracyPct < 65))
+    .sort((a, b) => (b.incorrect - a.incorrect) || (a.accuracyPct - b.accuracyPct))
+    .slice(0, 12);
+
+  // Extract list of all wrongly answered questions with detailed metadata
+  const wrongQuestions = [];
+  questions.forEach(q => {
+    const ans = userAnswers[q.id];
+    if (ans && !ans.isCorrect) {
+      wrongQuestions.push({
+        ...q,
+        userSelectedOption: ans.selectedOption,
+        timeSpentSec: ans.timeSpentMs ? Math.round(ans.timeSpentMs / 1000) : null,
+        answeredAt: ans.answeredAt || ans.timestamp
+      });
+    }
+  });
+
+  return {
+    criticalWeakSubareas: weakPoints,
+    wrongQuestionsList: wrongQuestions.sort((a, b) => (b.answeredAt || 0) - (a.answeredAt || 0)),
+    totalWrongCount: wrongQuestions.length
+  };
+};
+
+/**
+ * Calculates Full 300 Subareas Distribution Stats
+ */
+export const getFullDistributionStats = (questions = [], userAnswers = {}) => {
+  const totalQuestions = questions.length || 1;
+  const areaStats = getAreaAnalytics(questions, userAnswers);
+  const subareaStats = getSubareaDetailedAnalytics(questions, userAnswers);
+
+  // Difficulty breakdown
+  const diffMap = {};
+  questions.forEach(q => {
+    const diff = q.nivel_de_dificuldade || "Moderada";
+    if (!diffMap[diff]) {
+      diffMap[diff] = { name: diff, total: 0, answered: 0, correct: 0, incorrect: 0 };
+    }
+    diffMap[diff].total += 1;
+    const ans = userAnswers[q.id];
+    if (ans) {
+      diffMap[diff].answered += 1;
+      if (ans.isCorrect) diffMap[diff].correct += 1;
+      else diffMap[diff].incorrect += 1;
+    }
+  });
+
+  const diffList = Object.values(diffMap).map(d => ({
+    ...d,
+    sharePct: parseFloat(((d.total / totalQuestions) * 100).toFixed(1)),
+    accuracyPct: d.answered > 0 ? Math.round((d.correct / d.answered) * 100) : 0
+  }));
+
+  return {
+    totalQuestions,
+    areas: areaStats,
+    subareas: subareaStats.sort((a, b) => b.total - a.total),
+    difficulties: diffList
+  };
+};
+
+export const getQuickTestDiagnostics = (questions = [], userAnswers = {}) => {
+  const weakness = getWeaknessPointsToReinforce(questions, userAnswers);
+  return {
+    totalErrors: weakness.totalWrongCount,
+    weakPoints: weakness.criticalWeakSubareas,
+    incorrectQuestions: weakness.wrongQuestionsList
+  };
+};
+
+export const getSubareaAnalytics = (questions = [], userAnswers = {}, limit = 15) => {
+  return getSubareaDetailedAnalytics(questions, userAnswers)
     .sort((a, b) => b.total - a.total)
     .slice(0, limit);
 };
 
-export const getYearlyAnalytics = (questions, userAnswers = {}) => {
+export const getYearlyAnalytics = (questions = [], userAnswers = {}) => {
   const yearStats = {};
-
   questions.forEach(q => {
     const year = String(q.ano_da_prova || "Outros");
     if (!yearStats[year]) {
       yearStats[year] = { year, total: 0, correct: 0, incorrect: 0, unanswered: 0 };
     }
-
     yearStats[year].total += 1;
     const ans = userAnswers[q.id];
     if (ans) {
@@ -146,166 +281,7 @@ export const getYearlyAnalytics = (questions, userAnswers = {}) => {
     .sort((a, b) => a.year.localeCompare(b.year));
 };
 
-export const getWeaknessDiagnostics = (questions, userAnswers = {}) => {
-  const subareaStats = {};
-
-  questions.forEach(q => {
-    const subarea = q.subarea || "Geral";
-    const area = q.area || "Outros";
-    const key = `${area} - ${subarea}`;
-
-    if (!subareaStats[key]) {
-      subareaStats[key] = {
-        key,
-        area,
-        subarea,
-        total: 0,
-        answered: 0,
-        correct: 0,
-        incorrect: 0
-      };
-    }
-
-    subareaStats[key].total += 1;
-    const ans = userAnswers[q.id];
-    if (ans) {
-      subareaStats[key].answered += 1;
-      if (ans.isCorrect) subareaStats[key].correct += 1;
-      else subareaStats[key].incorrect += 1;
-    }
-  });
-
-  // Filter subareas with at least 1 error or lowest accuracy
-  return Object.values(subareaStats)
-    .filter(item => item.incorrect > 0)
-    .map(item => ({
-      ...item,
-      accuracyPct: Math.round((item.correct / item.answered) * 100)
-    }))
-    .sort((a, b) => b.incorrect - a.incorrect || a.accuracyPct - b.accuracyPct)
-    .slice(0, 8);
-};
-
-/**
- * Calculates complete distribution across ALL areas, ALL subareas, and ALL difficulties
- */
-export const getFullDistributionStats = (questions = [], userAnswers = {}) => {
-  const totalQuestions = questions.length || 1;
-
-  // 1. All Areas
-  const areaMap = {};
-  // 2. All Subareas
-  const subareaMap = {};
-  // 3. Difficulty Breakdown
-  const diffMap = {};
-
-  questions.forEach(q => {
-    const area = q.area || "Não Classificada";
-    const subarea = q.subarea || "Geral";
-    const diff = q.nivel_de_dificuldade || "A Classificar";
-    const ans = userAnswers[q.id];
-
-    // Area mapping
-    if (!areaMap[area]) {
-      areaMap[area] = { name: area, total: 0, answered: 0, correct: 0, incorrect: 0 };
-    }
-    areaMap[area].total += 1;
-    if (ans) {
-      areaMap[area].answered += 1;
-      if (ans.isCorrect) areaMap[area].correct += 1;
-      else areaMap[area].incorrect += 1;
-    }
-
-    // Subarea mapping
-    const subKey = `${area} › ${subarea}`;
-    if (!subareaMap[subKey]) {
-      subareaMap[subKey] = { name: subarea, area, fullKey: subKey, total: 0, answered: 0, correct: 0, incorrect: 0 };
-    }
-    subareaMap[subKey].total += 1;
-    if (ans) {
-      subareaMap[subKey].answered += 1;
-      if (ans.isCorrect) subareaMap[subKey].correct += 1;
-      else subareaMap[subKey].incorrect += 1;
-    }
-
-    // Difficulty mapping
-    if (!diffMap[diff]) {
-      diffMap[diff] = { name: diff, total: 0, answered: 0, correct: 0, incorrect: 0 };
-    }
-    diffMap[diff].total += 1;
-    if (ans) {
-      diffMap[diff].answered += 1;
-      if (ans.isCorrect) diffMap[diff].correct += 1;
-      else diffMap[diff].incorrect += 1;
-    }
-  });
-
-  const areasList = Object.values(areaMap).map(a => ({
-    ...a,
-    sharePct: parseFloat(((a.total / totalQuestions) * 100).toFixed(1)),
-    accuracyPct: a.answered > 0 ? Math.round((a.correct / a.answered) * 100) : 0
-  })).sort((a, b) => b.total - a.total);
-
-  const subareasList = Object.values(subareaMap).map(s => ({
-    ...s,
-    sharePct: parseFloat(((s.total / totalQuestions) * 100).toFixed(1)),
-    accuracyPct: s.answered > 0 ? Math.round((s.correct / s.answered) * 100) : 0
-  })).sort((a, b) => b.total - a.total);
-
-  const diffList = Object.values(diffMap).map(d => ({
-    ...d,
-    sharePct: parseFloat(((d.total / totalQuestions) * 100).toFixed(1)),
-    accuracyPct: d.answered > 0 ? Math.round((d.correct / d.answered) * 100) : 0
-  })).sort((a, b) => b.total - a.total);
-
-  return {
-    totalQuestions,
-    areas: areasList,
-    subareas: subareasList,
-    difficulties: diffList
-  };
-};
-
-/**
- * Diagnostic analysis specifically for Quick Test errors and weak points
- */
-export const getQuickTestDiagnostics = (questions = [], userAnswers = {}) => {
-  const incorrectList = [];
-  const themeErrorMap = {};
-
-  questions.forEach(q => {
-    const ans = userAnswers[q.id];
-    if (ans && !ans.isCorrect) {
-      incorrectList.push(q);
-
-      const theme = q.doenca_ou_conjunto_de_doencas || q.subarea || "Geral";
-      const key = `${q.area} | ${theme}`;
-
-      if (!themeErrorMap[key]) {
-        themeErrorMap[key] = {
-          key,
-          area: q.area,
-          subarea: q.subarea,
-          theme,
-          errorCount: 0,
-          sampleQuestions: []
-        };
-      }
-      themeErrorMap[key].errorCount += 1;
-      if (themeErrorMap[key].sampleQuestions.length < 3) {
-        themeErrorMap[key].sampleQuestions.push(q);
-      }
-    }
-  });
-
-  const weakPoints = Object.values(themeErrorMap)
-    .sort((a, b) => b.errorCount - a.errorCount)
-    .slice(0, 10);
-
-  return {
-    totalErrors: incorrectList.length,
-    weakPoints,
-    incorrectQuestions: incorrectList
-  };
+export const getWeaknessDiagnostics = (questions = [], userAnswers = {}) => {
+  return getWeaknessPointsToReinforce(questions, userAnswers).criticalWeakSubareas;
 };
 

@@ -34,14 +34,28 @@ export const QuestionDbProvider = ({ children }) => {
       const syncMeta = getSyncMetadata();
       const isVersionValid = syncMeta?.version === CURRENT_DATABASE_VERSION && (syncMeta?.count || 0) >= 5000;
 
-      // 1. If valid cache exists in IndexedDB, load it
-      if (!forceRemote && isVersionValid) {
+      // 1. Check Neon PostgreSQL remote if forced or initial load
+      if (forceRemote) {
+        try {
+          const res = await fetch('/api/questions', { 
+            headers: { 'ngrok-skip-browser-warning': 'true' } 
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.questoes && data.questoes.length >= 5000) {
+              baseQuestions = data.questoes;
+              await syncFullDatasetToLocalDB(baseQuestions, CURRENT_DATABASE_VERSION);
+            }
+          }
+        } catch (netErr) {
+          console.debug('Neon remote sync fallback to local cache:', netErr);
+        }
+      } else if (isVersionValid) {
         const localCached = await loadAllQuestionsFromLocalDB();
         if (localCached && localCached.length >= 5000) {
           baseQuestions = localCached;
         }
       } else {
-        // Sync static base to local IndexedDB
         if (baseQuestions.length > 0) {
           await syncFullDatasetToLocalDB(baseQuestions, CURRENT_DATABASE_VERSION);
         }
@@ -65,12 +79,11 @@ export const QuestionDbProvider = ({ children }) => {
       setQuestions(merged);
       setIsSynchronized(true);
       setLastSyncTime(Date.now());
-      setSyncStatusText(`🟢 Sincronizado (${merged.length} questões)`);
+      setSyncStatusText(`⚡ Neon PostgreSQL (${merged.length} questões)`);
       setIsLoaded(true);
       return merged;
     } catch (err) {
       console.warn('Sync notice:', err);
-      // Fallback to initial questions
       setQuestions(initialQuestions);
       setIsLoaded(true);
       return initialQuestions;

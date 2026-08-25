@@ -1,21 +1,29 @@
 {
-  "updatedAt": "2026-08-25T22:19:19.164Z",
+  "updatedAt": "2026-08-25T23:49:21.502Z",
   "answers": {
     "PNA2024-001": {
       "selectedOption": "B",
       "isCorrect": true,
       "timestamp": 1724628000000,
       "timeSpentMs": 45000
+    },
+    "PNA2024-002": {
+      "selectedOption": "A",
+      "isCorrect": true,
+      "timestamp": 1724628000000,
+      "timeSpentMs": 32000
     }
   },
-  "savedQuestions": {},
+  "savedQuestions": {
+    "PNA2024-001": true
+  },
   "notes": {
-    "PNA2024-001": "Anotacao de teste persistida direto no disco"
+    "PNA2024-001": "Anotacao salva diretamente no Neon PostgreSQL"
   },
   "examHistory": [],
   "dailyActivity": {
     "2026-08-25": {
-      "questions": 1,
+      "questions": 2,
       "flashcards": 0
     }
   }

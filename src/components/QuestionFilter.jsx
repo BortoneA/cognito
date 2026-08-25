@@ -174,9 +174,9 @@ const QuestionFilter = ({ filters, setFilters, totalFilteredCount, totalCount })
         </div>
       </div>
 
-      {/* Filter Info Footer */}
-      <div className="flex items-center justify-between text-xs text-slate-400 pt-2">
-        <div className="flex items-center gap-2">
+      {/* Filter Info & Queue Sorting Footer */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-slate-400 pt-3 border-t border-white/5">
+        <div className="flex items-center gap-3">
           <span className="font-extrabold text-white bg-indigo-500/15 text-indigo-300 px-3 py-1 rounded-full border border-indigo-500/30">
             {totalFilteredCount} {totalFilteredCount === 1 ? 'questão' : 'questões'}
           </span>
@@ -185,13 +185,42 @@ const QuestionFilter = ({ filters, setFilters, totalFilteredCount, totalCount })
           )}
         </div>
 
-        <button
-          onClick={handleResetFilters}
-          className="flex items-center gap-1 text-slate-400 hover:text-indigo-400 transition-colors font-semibold text-xs"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-          <span>Resetar Filtros</span>
-        </button>
+        {/* Dynamic Queue Order Toggle */}
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] uppercase font-bold text-slate-400">Ordenação:</span>
+          <div className="flex items-center apple-segmented-bg p-0.5 text-[11px]">
+            <button
+              onClick={() => setFilters(prev => ({ ...prev, sortBy: 'queue' }))}
+              title="Questões não respondidas sobem para o topo; respondidas vão para o fim da fila"
+              className={`px-2.5 py-1 rounded-xl font-bold transition-all ${
+                (!filters.sortBy || filters.sortBy === 'queue')
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              🚀 Fila Inteligente (Pendentes no topo)
+            </button>
+            <button
+              onClick={() => setFilters(prev => ({ ...prev, sortBy: 'exam' }))}
+              title="Ordem oficial de prova por ano e número"
+              className={`px-2.5 py-1 rounded-xl font-bold transition-all ${
+                filters.sortBy === 'exam'
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              🔢 Prova Original
+            </button>
+          </div>
+
+          <button
+            onClick={handleResetFilters}
+            className="flex items-center gap-1 text-slate-400 hover:text-indigo-400 transition-colors font-semibold text-xs ml-2"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Resetar</span>
+          </button>
+        </div>
       </div>
 
     </div>

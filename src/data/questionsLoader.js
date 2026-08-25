@@ -1,14 +1,13 @@
 /**
- * Questions Loader & Filtering Utilities
+ * Questions Loader, Dynamic Queue & Filtering Utilities
  */
 
 export const getUniqueYears = (questions = []) => {
   const years = new Set(questions.map(q => q.ano_da_prova).filter(Boolean));
   if (years.size === 0) {
-    // Default fallback years for PNA
     return [2024, 2023, 2022, 2021, 2020, 2019, 2018];
   }
-  return Array.from(years).sort((a, b) => b - a); // Descending (2024 -> 2018)
+  return Array.from(years).sort((a, b) => b - a);
 };
 
 export const getUniqueAreas = (questions = []) => {
@@ -43,8 +42,16 @@ export const getUniqueDifficulties = (questions = []) => {
   return Object.entries(diffMap).map(([diff, count]) => ({ difficulty: diff, count }));
 };
 
+/**
+ * Filters and orders questions with Dynamic Queue Priority:
+ * - Unanswered questions always rise to the top of the queue.
+ * - Answered questions automatically move to the bottom of the queue.
+ */
 export const filterQuestions = (questions = [], filters = {}, userProgress = {}) => {
-  return questions.filter(q => {
+  const userAnswers = userProgress.answers || {};
+  const savedMap = userProgress.savedQuestions || {};
+
+  const filtered = questions.filter(q => {
     // Year filter
     if (filters.year && filters.year !== 'all') {
       if (String(q.ano_da_prova) !== String(filters.year)) return false;
@@ -66,8 +73,8 @@ export const filterQuestions = (questions = [], filters = {}, userProgress = {})
     }
 
     // Status filter (all, answered, unanswered, correct, incorrect, saved)
-    const history = userProgress.answers?.[q.id];
-    const isSaved = userProgress.savedQuestions?.[q.id];
+    const history = userAnswers[q.id];
+    const isSaved = savedMap[q.id];
 
     if (filters.status === 'unanswered' && history) return false;
     if (filters.status === 'answered' && !history) return false;
@@ -75,7 +82,7 @@ export const filterQuestions = (questions = [], filters = {}, userProgress = {})
     if (filters.status === 'incorrect' && (!history || history.isCorrect)) return false;
     if (filters.status === 'saved' && !isSaved) return false;
 
-    // Search query (text search in enunciado, explicacao, doenca, id, area, subarea)
+    // Search query
     if (filters.search && filters.search.trim() !== '') {
       const term = filters.search.toLowerCase().trim();
       const matchId = q.id?.toLowerCase().includes(term);
@@ -93,4 +100,39 @@ export const filterQuestions = (questions = [], filters = {}, userProgress = {})
 
     return true;
   });
+
+  const sortBy = filters.sortBy || 'queue'; // 'queue' (default), 'exam', 'recent'
+
+  if (sortBy === 'queue') {
+    return filtered.sort((a, b) => {
+      const ansA = userAnswers[a.id];
+      const ansB = userAnswers[b.id];
+
+      // 1. Unanswered (pendente) always goes FIRST (top of the queue)
+      if (!ansA && ansB) return -1;
+      if (ansA && !ansB) return 1;
+
+      // 2. Both answered: older answers come before more recent ones (recently answered goes to absolute bottom)
+      if (ansA && ansB) {
+        const timeA = ansA.answeredAt || ansA.timestamp || 0;
+        const timeB = ansB.answeredAt || ansB.timestamp || 0;
+        return timeA - timeB;
+      }
+
+      // 3. Both unanswered: preserve official exam year descending, then question number ascending
+      if (b.ano_da_prova !== a.ano_da_prova) {
+        return (b.ano_da_prova || 0) - (a.ano_da_prova || 0);
+      }
+      return (a.numero || 0) - (b.numero || 0);
+    });
+  } else if (sortBy === 'exam') {
+    return filtered.sort((a, b) => {
+      if (b.ano_da_prova !== a.ano_da_prova) {
+        return (b.ano_da_prova || 0) - (a.ano_da_prova || 0);
+      }
+      return (a.numero || 0) - (b.numero || 0);
+    });
+  }
+
+  return filtered;
 };

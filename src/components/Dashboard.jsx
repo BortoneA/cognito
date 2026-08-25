@@ -335,20 +335,23 @@ const Dashboard = ({ onSelectFilter }) => {
               {subareaData.slice(0, 7).map((sub, idx) => {
                 const totalCount = questions.length || 1;
                 const percentage = Math.round((sub.total / totalCount) * 100);
+                const subName = sub.subarea || sub.name;
+                const maxVol = subareaData[0]?.total || 1;
+                const barWidth = Math.min(100, Math.max(10, Math.round((sub.total / maxVol) * 100)));
                 return (
                   <div 
                     key={idx} 
-                    onClick={() => onSelectFilter({ area: sub.area, subarea: sub.subarea })}
+                    onClick={() => onSelectFilter({ area: sub.area, subarea: subName })}
                     className="p-3 rounded-2xl bg-white/5 border border-white/5 hover:border-indigo-500/40 cursor-pointer transition-all duration-200 hover:scale-[1.01]"
                   >
                     <div className="flex items-center justify-between text-xs mb-1.5">
-                      <span className="font-bold text-white truncate max-w-[150px]">{sub.subarea}</span>
-                      <span className="text-indigo-400 font-black">{sub.total} q. ({percentage}%)</span>
+                      <span className="font-bold text-white truncate max-w-[180px]" title={subName}>{subName}</span>
+                      <span className="text-indigo-400 font-black shrink-0">{sub.total} q. ({percentage}%)</span>
                     </div>
                     <div className="w-full h-1.5 rounded-full bg-slate-900 overflow-hidden">
                       <div 
-                        className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 shadow-sm" 
-                        style={{ width: `${subareaData[0] ? (sub.total / subareaData[0].total) * 100 : 0}%` }}
+                        className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 shadow-sm transition-all duration-500" 
+                        style={{ width: `${barWidth}%` }}
                       ></div>
                     </div>
                   </div>

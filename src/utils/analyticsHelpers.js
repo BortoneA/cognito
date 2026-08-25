@@ -31,8 +31,8 @@ export const getOverviewKPIs = (questions = [], userProgress = {}) => {
     : 0;
 
   // Estimated PNA Score (scale 0-100)
-  const estimatedPnaScore = totalAnswered >= 10
-    ? Math.round(accuracyPct * 0.95 + (totalAnswered / totalQuestions) * 5)
+  const estimatedPnaScore = totalAnswered >= 5
+    ? Math.round(accuracyPct * 0.95 + (totalAnswered / Math.max(1, totalQuestions)) * 5)
     : accuracyPct;
 
   return {
@@ -104,7 +104,8 @@ export const getSubareaDetailedAnalytics = (questions = [], userAnswers = {}) =>
       subareaStats[key] = {
         key,
         name: subarea,
-        area,
+        subarea: subarea,
+        area: area,
         total: 0,
         answered: 0,
         correct: 0,
@@ -135,7 +136,7 @@ export const getSubareaDetailedAnalytics = (questions = [], userAnswers = {}) =>
     
     let proficiency = 'Não Testada';
     let proficiencyColor = 'text-slate-400';
-    let priorityScore = 0; // Higher means more urgent to reinforce
+    let priorityScore = 0;
 
     if (s.answered > 0) {
       if (accuracy >= 80) {
@@ -173,7 +174,7 @@ export const getWeaknessPointsToReinforce = (questions = [], userAnswers = {}) =
 
   // Focus on subareas with errors or low accuracy
   const weakPoints = subareaAnalytics
-    .filter(s => s.incorrect > 0 || (s.answered >= 2 && s.accuracyPct < 65))
+    .filter(s => s.incorrect > 0 || (s.answered >= 1 && s.accuracyPct < 70))
     .sort((a, b) => (b.incorrect - a.incorrect) || (a.accuracyPct - b.accuracyPct))
     .slice(0, 12);
 
@@ -284,4 +285,3 @@ export const getYearlyAnalytics = (questions = [], userAnswers = {}) => {
 export const getWeaknessDiagnostics = (questions = [], userAnswers = {}) => {
   return getWeaknessPointsToReinforce(questions, userAnswers).criticalWeakSubareas;
 };
-

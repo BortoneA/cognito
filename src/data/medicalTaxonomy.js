@@ -1,17 +1,13 @@
 /**
- * Arsenal Oficial de Áreas e Subáreas Médicas PNA (Taxonomia Fixa Imutável)
+ * Arsenal Oficial Canônico de Áreas e Subáreas Médicas PNA (Fixas e Imutáveis)
  */
 
 export const MEDICAL_TAXONOMY = {
   "Cardiologia": [
     "Angina Estável & Doença Coronária Crônica",
-    "Arritmias & Eletrofisiologia",
-    "Doença Isquêmica & Síndromes Coronarianas (IAM/Angina)",
     "Fibrilação Auricular & Arritmias",
-    "Fibrilação Auricular, Arritmias & Eletrofisiologia",
     "Hipertensão Arterial & Emergências",
     "Insuficiência Cardíaca & Miocardiopatias",
-    "Pericárdio, Miocardite & Aorta",
     "Síndrome Coronariana Aguda & Infarto (IAM)",
     "Valvopatias, Endocardite & Aorta"
   ],
@@ -20,32 +16,25 @@ export const MEDICAL_TAXONOMY = {
   ],
   "Endocrinologia & Metabologia": [
     "Adrenal, Hipófise & Gônadas",
-    "Diabetes Mellitus & Complicações Agudas",
-    "Diabetes Mellitus & Manejo Crônico",
     "Diabetes Mellitus: Diagnóstico & Manejo Crônico",
     "Diabetes: Complicações Agudas (Cetoacidose / EHH)",
     "Metabolismo Ósseo, Cálcio & Dislipidemias",
-    "Tireoide (Hipotireoidismo & Hipertireoidismo)",
     "Tireoide: Disfunção, Nódulos & Câncer"
   ],
   "Gastroenterologia & Hepatologia": [
     "Cirrose Hepática & Hipertensão Portal",
     "Doença Inflamatória Intestinal (Crohn / RCU)",
-    "Esôfago & Estômago (DRGE, Úlcera, HDA)",
     "Esôfago, Estômago & Doença Péptica",
     "Hepatites & Doenças Hepáticas",
-    "Intestino Grosso, Delgado & Doença Celíaca",
     "Intestino, Diarreia & Doença Celíaca",
     "Litíase Biliar, Vias Biliares & Pâncreas"
   ],
   "Ginecologia & Obstetrícia": [
     "Ginecologia: Infecções Genitais & Contracepção",
     "Ginecologia: Rastreio & Cânceres Ginecológicos",
-    "Ginecologia: Sangramento & Endocrinologia Ginecológica",
     "Ginecologia: Sangramento, Endometriose & Endócrino",
     "Obstetrícia: Parto, Puerpério & Hemorragias",
-    "Obstetrícia: Patologias Gestacionais & Alto Risco",
-    "Obstetrícia: Trabalho de Parto & Puerpério"
+    "Obstetrícia: Patologias Gestacionais & Alto Risco"
   ],
   "Hematologia & Oncologia": [
     "Anemias Carenciais & Hemolíticas",
@@ -57,11 +46,9 @@ export const MEDICAL_TAXONOMY = {
   ],
   "Nefrologia & Urologia": [
     "Distúrbios Eletrolíticos & Ácido-Base",
-    "Distúrbios Hidroeletrolíticos & Ácido-Base",
     "Doença Renal Crônica & Substituição Renal",
     "Glomerulopatias (Nefrótica & Nefrítica)",
     "Injúria Renal Aguda & Síndrome Urêmica",
-    "Injúria Renal Aguda (IRA)",
     "Urologia, Litíase & Infecções Urinárias"
   ],
   "Neurologia": [
@@ -71,18 +58,15 @@ export const MEDICAL_TAXONOMY = {
     "Epilepsia, Crises Convulsivas & Síncope"
   ],
   "Pediatria": [
+    "Doenças Exantemáticas & Infecciosas da Infância",
     "Gastroenterologia & Cirurgia Pediátrica",
-    "Infectologia & Exantemas Pediátricos",
-    "Neonatologia & Puericultura",
     "Neonatologia & Reanimação Neonatal",
-    "Puericultura & Desenvolvimento Infantil"
+    "Puericultura, Crescimento & Vacinação"
   ],
   "Pneumologia": [
-    "Asma & DPOC",
     "Asma Brônquica",
     "Doença Pulmonar Obstrutiva Crônica (DPOC)",
     "Neoplasias Pulmonares & Doenças Intersticiais",
-    "Pneumonias & Infecções Respiratórias",
     "Pneumonias Adquiridas & Nosocomiais",
     "Tromboembolismo Pulmonar (TEP)",
     "Tuberculose Pulmonar & Pleural"

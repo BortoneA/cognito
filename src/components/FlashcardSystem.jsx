@@ -31,6 +31,7 @@ import {
   createCustomFlashcard,
   generateFlashcardsFromQuestions 
 } from '../services/flashcardService';
+import { MEDICAL_TAXONOMY, getAvailableAreas, getSubareasByArea } from '../data/medicalTaxonomy';
 
 const FlashcardSystem = () => {
   const { questions } = useQuestionDb();
@@ -47,11 +48,12 @@ const FlashcardSystem = () => {
   const [viewMode, setViewMode] = useState('review'); // 'review' | 'manage'
 
   // New Card Form State
+  const defaultArea = getAvailableAreas()[0] || 'Cardiologia';
   const [newCardForm, setNewCardForm] = useState({
     front: '',
     back: '',
-    area: 'Clínica Médica',
-    subarea: '',
+    area: defaultArea,
+    subarea: getSubareasByArea(defaultArea)[0] || '',
     theme: ''
   });
 
@@ -584,40 +586,37 @@ const FlashcardSystem = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">Área Médica</label>
+                  <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">Área Médica (Arsenal)</label>
                   <select
                     value={newCardForm.area}
-                    onChange={(e) => setNewCardForm({ ...newCardForm, area: e.target.value })}
-                    className="w-full p-3 bg-slate-900/90 border border-white/10 rounded-2xl text-xs text-white focus:outline-none focus:border-purple-500"
+                    onChange={(e) => {
+                      const newArea = e.target.value;
+                      const subList = getSubareasByArea(newArea);
+                      setNewCardForm({
+                        ...newCardForm,
+                        area: newArea,
+                        subarea: subList[0] || ''
+                      });
+                    }}
+                    className="w-full p-3 bg-slate-900/90 border border-white/10 rounded-2xl text-xs text-white focus:outline-none focus:border-purple-500 cursor-pointer font-medium"
                   >
-                    <option value="Clínica Médica">Clínica Médica</option>
-                    <option value="Cirurgia">Cirurgia Geral</option>
-                    <option value="Ginecologia e Obstetrícia">Ginecologia e Obstetrícia</option>
-                    <option value="Pediatria">Pediatria</option>
-                    <option value="Medicina Preventiva">Medicina Preventiva / Saúde Pública</option>
-                    <option value="Psiquiatria">Psiquiatria</option>
-                    <option value="Neurologia">Neurologia</option>
-                    <option value="Cardiologia">Cardiologia</option>
-                    <option value="Gastroenterologia">Gastroenterologia</option>
-                    <option value="Nefrologia">Nefrologia</option>
-                    <option value="Pneumologia">Pneumologia</option>
-                    <option value="Infectologia">Infectologia</option>
-                    <option value="Ortopedia">Ortopedia</option>
-                    <option value="Dermatologia">Dermatologia</option>
-                    <option value="Hematologia">Hematologia</option>
-                    <option value="Endocrinologia">Endocrinologia</option>
+                    {getAvailableAreas().map(area => (
+                      <option key={area} value={area}>{area}</option>
+                    ))}
                   </select>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">Subárea / Tópico</label>
-                  <input
-                    type="text"
+                  <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">Subárea Fixa (Arsenal)</label>
+                  <select
                     value={newCardForm.subarea}
                     onChange={(e) => setNewCardForm({ ...newCardForm, subarea: e.target.value })}
-                    placeholder="Ex: Neurologia, Emergência"
-                    className="w-full p-3 bg-slate-900/90 border border-white/10 rounded-2xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
-                  />
+                    className="w-full p-3 bg-slate-900/90 border border-white/10 rounded-2xl text-xs text-white focus:outline-none focus:border-purple-500 cursor-pointer font-medium"
+                  >
+                    {getSubareasByArea(newCardForm.area).map(sub => (
+                      <option key={sub} value={sub}>{sub}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

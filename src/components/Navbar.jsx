@@ -19,7 +19,7 @@ import ThemeSwitcher from './ThemeSwitcher';
 
 const Navbar = ({ activeTab, setActiveTab, onOpenDataModal, onOpenQuickTest }) => {
   const { progress } = useUserProgress();
-  const { questions } = useQuestionDb();
+  const { questions, isSynchronized } = useQuestionDb();
   const kpis = getOverviewKPIs(questions, progress);
 
   const tabs = [
@@ -108,13 +108,16 @@ const Navbar = ({ activeTab, setActiveTab, onOpenDataModal, onOpenQuickTest }) =
               {/* Theme & Reading Customizer */}
               <ThemeSwitcher />
 
-              {/* DB button */}
+              {/* DB button with sync indicator */}
               <button
                 onClick={onOpenDataModal}
-                title="Banco de Dados Local"
-                className="p-2 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all active:scale-95 touch-target"
+                title={isSynchronized ? "Banco Local Sincronizado (IndexedDB)" : "Banco de Dados Local"}
+                className="p-2 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all active:scale-95 touch-target relative"
               >
                 <Database className="w-4 h-4" />
+                {isSynchronized && (
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-slate-950 animate-pulse" />
+                )}
               </button>
             </div>
           </div>

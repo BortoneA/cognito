@@ -3,7 +3,11 @@ import {
   getLocalQuestionEdits, 
   saveLocalQuestionEdit, 
   clearAllLocalQuestionEdits,
-  exportFullDatabaseJSON 
+  clearFullLocalCache,
+  exportFullDatabaseJSON,
+  loadAllQuestionsFromLocalDB,
+  syncFullDatasetToLocalDB,
+  getSyncMetadata
 } from '../services/localDatabaseService';
 
 const QuestionDbContext = createContext();
@@ -12,9 +16,12 @@ export const QuestionDbProvider = ({ children }) => {
   const [questions, setQuestions] = useState([]);
   const [localEditsMap, setLocalEditsMap] = useState({});
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isSynchronized, setIsSynchronized] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState(null);
   const [loadError, setLoadError] = useState(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  // Load initial dataset & merge with local IndexedDB/LocalStorage edits
+  // Initialize and synchronize local database
   useEffect(() => {
     let isMounted = true;
 
@@ -22,24 +29,44 @@ export const QuestionDbProvider = ({ children }) => {
       try {
         let baseQuestions = [];
 
-        // 1. Try fetching from public/data/ (streaming browser JSON parse, highly efficient)
-        try {
-          const res = await fetch('/data/banco_questoes_pna.json');
-          if (res.ok) {
-            const data = await res.json();
-            baseQuestions = data.questoes || [];
+        // 1. First, check if full dataset already exists in local IndexedDB (instant offline load)
+        const localCached = await loadAllQuestionsFromLocalDB();
+        const syncMeta = getSyncMetadata();
+
+        if (localCached && localCached.length > 0) {
+          baseQuestions = localCached;
+          if (isMounted) {
+            setIsSynchronized(true);
+            setLastSyncTime(syncMeta?.timestamp || Date.now());
           }
-        } catch (fetchErr) {
-          console.warn('Fetch from public data failed, trying fallback import...', fetchErr);
+        } else {
+          // 2. Fetch base JSON from public/data/ or static import
+          try {
+            const res = await fetch('/data/banco_questoes_pna.json');
+            if (res.ok) {
+              const data = await res.json();
+              baseQuestions = data.questoes || [];
+            }
+          } catch (fetchErr) {
+            console.warn('Fetch failed, falling back to static import', fetchErr);
+          }
+
+          if (baseQuestions.length === 0) {
+            const staticData = await import('../data/banco_questoes_pna.json');
+            baseQuestions = staticData.default?.questoes || staticData.questoes || [];
+          }
+
+          // 3. Automatically synchronize full dataset to IndexedDB locally
+          if (baseQuestions.length > 0) {
+            await syncFullDatasetToLocalDB(baseQuestions);
+            if (isMounted) {
+              setIsSynchronized(true);
+              setLastSyncTime(Date.now());
+            }
+          }
         }
 
-        // 2. Fallback to dynamic import if fetch didn't return data
-        if (baseQuestions.length === 0) {
-          const staticData = await import('../data/banco_questoes_pna.json');
-          baseQuestions = staticData.default?.questoes || staticData.questoes || [];
-        }
-
-        // 3. Load local edits from IndexedDB / LocalStorage
+        // 4. Overlay user edits
         const edits = await getLocalQuestionEdits();
         if (!isMounted) return;
 
@@ -58,8 +85,8 @@ export const QuestionDbProvider = ({ children }) => {
           setQuestions(baseQuestions);
         }
       } catch (err) {
-        console.error('Failed to load database:', err);
-        if (isMounted) setLoadError(err.message || 'Erro ao carregar banco');
+        console.error('Failed to load local database:', err);
+        if (isMounted) setLoadError(err.message || 'Erro ao sincronizar banco local');
       } finally {
         if (isMounted) setIsLoaded(true);
       }
@@ -71,6 +98,41 @@ export const QuestionDbProvider = ({ children }) => {
       isMounted = false;
     };
   }, []);
+
+  // Force manual synchronization of the local database
+  const syncDatabaseLocally = async () => {
+    setIsSyncing(true);
+    try {
+      let freshQuestions = [];
+      const res = await fetch('/data/banco_questoes_pna.json');
+      if (res.ok) {
+        const data = await res.json();
+        freshQuestions = data.questoes || [];
+      }
+
+      if (freshQuestions.length > 0) {
+        const edits = await getLocalQuestionEdits();
+        const merged = freshQuestions.map(q => edits[q.id] || q);
+        const baseIdSet = new Set(freshQuestions.map(q => q.id));
+        Object.values(edits).forEach(customQ => {
+          if (!baseIdSet.has(customQ.id)) {
+            merged.push(customQ);
+          }
+        });
+
+        await syncFullDatasetToLocalDB(merged);
+        setQuestions(merged);
+        setIsSynchronized(true);
+        setLastSyncTime(Date.now());
+        return { success: true, count: merged.length };
+      }
+    } catch (e) {
+      console.error('Sync failed:', e);
+      return { success: false, error: e.message };
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   // Update question locally & in memory
   const updateQuestion = async (updatedQ) => {
@@ -122,10 +184,31 @@ export const QuestionDbProvider = ({ children }) => {
       const res = await fetch('/data/banco_questoes_pna.json');
       if (res.ok) {
         const data = await res.json();
-        setQuestions(data.questoes || []);
+        const raw = data.questoes || [];
+        await syncFullDatasetToLocalDB(raw);
+        setQuestions(raw);
       }
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  // Import full external JSON database
+  const importFullDatabase = async (jsonString) => {
+    try {
+      const parsed = typeof jsonString === 'string' ? JSON.parse(jsonString) : jsonString;
+      const questionsList = parsed.questoes || (Array.isArray(parsed) ? parsed : null);
+      if (!questionsList || !Array.isArray(questionsList) || questionsList.length === 0) {
+        return { success: false, message: 'Formato inválido. O arquivo deve conter uma lista de questões.' };
+      }
+
+      await syncFullDatasetToLocalDB(questionsList);
+      setQuestions(questionsList);
+      setIsSynchronized(true);
+      setLastSyncTime(Date.now());
+      return { success: true, count: questionsList.length };
+    } catch (err) {
+      return { success: false, message: err.message };
     }
   };
 
@@ -140,10 +223,15 @@ export const QuestionDbProvider = ({ children }) => {
       totalQuestionsCount: questions.length,
       localEditsCount: Object.keys(localEditsMap).length,
       isLoaded,
+      isSynchronized,
+      lastSyncTime,
+      isSyncing,
       loadError,
+      syncDatabaseLocally,
       updateQuestion,
       addCustomQuestion,
       resetEdits,
+      importFullDatabase,
       exportDatabase
     }}>
       {children}

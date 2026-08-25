@@ -1,16 +1,38 @@
 import React, { useState } from 'react';
-import { X, Download, Upload, Trash2, Database, Check, Edit3, RefreshCw } from 'lucide-react';
+import { X, Download, Upload, Trash2, Database, Check, Edit3, RefreshCw, HardDrive, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { useUserProgress } from '../context/UserProgressContext';
 import { useQuestionDb } from '../context/QuestionDbContext';
 
 const DataManagementModal = ({ isOpen, onClose }) => {
   const { progress, exportData, importData, resetProgress } = useUserProgress();
-  const { questions, localEditsCount, resetEdits, exportDatabase } = useQuestionDb();
+  const { 
+    questions, 
+    localEditsCount, 
+    isSynchronized, 
+    lastSyncTime, 
+    isSyncing, 
+    syncDatabaseLocally, 
+    resetEdits, 
+    importFullDatabase, 
+    exportDatabase 
+  } = useQuestionDb();
+
   const [importStatus, setImportStatus] = useState(null);
+  const [syncFeedback, setSyncFeedback] = useState(null);
 
   if (!isOpen) return null;
 
-  const handleFileUpload = (e) => {
+  const handleManualSync = async () => {
+    const res = await syncDatabaseLocally();
+    if (res.success) {
+      setSyncFeedback({ success: true, message: `Banco sincronizado com sucesso! (${res.count} questões salvas no IndexedDB local)` });
+    } else {
+      setSyncFeedback({ success: false, message: `Erro ao sincronizar: ${res.error}` });
+    }
+    setTimeout(() => setSyncFeedback(null), 4000);
+  };
+
+  const handleProgressUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -20,9 +42,26 @@ const DataManagementModal = ({ isOpen, onClose }) => {
       if (success) {
         setImportStatus({ success: true, message: 'Dados de progresso importados com sucesso!' });
       } else {
-        setImportStatus({ success: false, message: 'Erro ao importar arquivo JSON.' });
+        setImportStatus({ success: false, message: 'Erro ao importar arquivo JSON de progresso.' });
       }
-      setTimeout(() => setImportStatus(null), 3000);
+      setTimeout(() => setImportStatus(null), 3500);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleDatabaseUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const result = await importFullDatabase(event.target.result);
+      if (result.success) {
+        setImportStatus({ success: true, message: `Banco local atualizado com sucesso (${result.count} questões importadas)!` });
+      } else {
+        setImportStatus({ success: false, message: `Erro ao importar banco: ${result.message}` });
+      }
+      setTimeout(() => setImportStatus(null), 4000);
     };
     reader.readAsText(file);
   };
@@ -47,7 +86,7 @@ const DataManagementModal = ({ isOpen, onClose }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xl">
-      <div className="relative w-full max-w-lg rounded-[32px] apple-glass border border-white/10 p-7 space-y-6 shadow-2xl animate-in fade-in zoom-in duration-200">
+      <div className="relative w-full max-w-lg rounded-[32px] apple-glass border border-white/10 p-7 space-y-6 shadow-2xl animate-in fade-in zoom-in duration-200 max-h-[90dvh] overflow-y-auto">
         
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/10 pb-4">
@@ -56,8 +95,8 @@ const DataManagementModal = ({ isOpen, onClose }) => {
               <Database className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-extrabold text-white">Banco de Dados Local & Backup</h3>
-              <p className="text-xs text-slate-400">Armazenamento local permanente (IndexedDB / LocalStorage)</p>
+              <h3 className="text-base font-extrabold text-white">Banco de Dados Local & Sincronização</h3>
+              <p className="text-xs text-slate-400">Armazenamento local permanente (IndexedDB • 100% Offline)</p>
             </div>
           </div>
           <button
@@ -66,6 +105,27 @@ const DataManagementModal = ({ isOpen, onClose }) => {
           >
             <X className="w-4 h-4" />
           </button>
+        </div>
+
+        {/* Local Sync Health Banner */}
+        <div className="p-4 rounded-2xl bg-emerald-950/30 border border-emerald-500/30 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-xs font-black text-emerald-300">Sincronizado no Dispositivo (IndexedDB)</span>
+            </div>
+            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              Offline Ativo
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-300 leading-relaxed">
+            Todas as <strong>{questions.length} questões</strong> estão armazenadas localmente no seu navegador. Você pode resolver simulados, editar questões e usar flashcards sem conexão à internet.
+          </p>
+          {lastSyncTime && (
+            <p className="text-[10px] text-slate-400">
+              Última sincronização local: {new Date(lastSyncTime).toLocaleTimeString('pt-BR')} • {new Date(lastSyncTime).toLocaleDateString('pt-BR')}
+            </p>
+          )}
         </div>
 
         {/* Current Stats */}
@@ -88,9 +148,36 @@ const DataManagementModal = ({ isOpen, onClose }) => {
           </div>
         </div>
 
-        {/* Actions */}
+        {/* Sync & Backup Actions */}
         <div className="space-y-3">
           
+          {/* Manual Sync Button */}
+          <button
+            onClick={handleManualSync}
+            disabled={isSyncing}
+            className="w-full p-3.5 rounded-2xl bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-200 text-xs font-bold flex items-center justify-between transition-all active:scale-98"
+          >
+            <div className="flex items-center gap-3">
+              <RefreshCw className={`w-5 h-5 text-indigo-400 ${isSyncing ? 'animate-spin' : ''}`} />
+              <div className="text-left">
+                <span className="block text-white font-extrabold">Forçar Sincronização Local</span>
+                <span className="text-[10px] text-slate-400 font-normal">Revalidar e salvar todas as questões no IndexedDB</span>
+              </div>
+            </div>
+            <span className="text-[10px] font-bold px-2.5 py-1 bg-indigo-500/30 rounded-xl text-indigo-300 border border-indigo-500/30">
+              {isSyncing ? 'Sincronizando...' : 'Sincronizar'}
+            </span>
+          </button>
+
+          {syncFeedback && (
+            <div className={`p-3 rounded-2xl text-xs font-semibold flex items-center gap-2 ${
+              syncFeedback.success ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-500/40' : 'bg-rose-950/60 text-rose-300 border border-rose-500/40'
+            }`}>
+              <Check className="w-4 h-4" />
+              <span>{syncFeedback.message}</span>
+            </div>
+          )}
+
           {/* Export Question Database JSON */}
           <button
             onClick={exportDatabase}
@@ -105,6 +192,19 @@ const DataManagementModal = ({ isOpen, onClose }) => {
             </div>
             <span className="text-[10px] font-bold px-2.5 py-1 bg-purple-500/30 rounded-xl text-purple-300 border border-purple-500/30">Download</span>
           </button>
+
+          {/* Import Question Database JSON */}
+          <label className="w-full p-3.5 rounded-2xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 text-purple-200 text-xs font-bold flex items-center justify-between transition-all cursor-pointer active:scale-98">
+            <div className="flex items-center gap-3">
+              <Upload className="w-5 h-5 text-purple-400" />
+              <div className="text-left">
+                <span className="block text-white">Importar Banco de Questões (.JSON)</span>
+                <span className="text-[10px] text-slate-400 font-normal">Carregar arquivo JSON para o IndexedDB local</span>
+              </div>
+            </div>
+            <span className="text-[10px] font-bold px-2.5 py-1 bg-purple-500/20 text-purple-300 rounded-xl border border-purple-500/30">Importar Banco</span>
+            <input type="file" accept=".json" onChange={handleDatabaseUpload} className="hidden" />
+          </label>
 
           {/* Backup User Progress */}
           <button
@@ -131,7 +231,7 @@ const DataManagementModal = ({ isOpen, onClose }) => {
               </div>
             </div>
             <span className="text-[10px] font-bold px-2.5 py-1 bg-emerald-500/20 text-emerald-300 rounded-xl border border-emerald-500/30">Carregar</span>
-            <input type="file" accept=".json" onChange={handleFileUpload} className="hidden" />
+            <input type="file" accept=".json" onChange={handleProgressUpload} className="hidden" />
           </label>
 
           {importStatus && (

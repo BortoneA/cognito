@@ -1,0 +1,64 @@
+name: Deploy Cognito
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cognito-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          COGNITO_VPS_SSH_KEY: ${{ secrets.COGNITO_VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$COGNITO_VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          for attempt in 1 2 3 4 5; do
+            ssh-keyscan -T 10 -H 93.127.163.19 >> ~/.ssh/known_hosts && break
+            sleep 3
+          done
+          test -s ~/.ssh/known_hosts
+
+      - name: Sync source on VPS
+        run: |
+          ssh root@93.127.163.19 'set -e
+            if [ -d /docker/cognito/app/.git ]; then
+              cd /docker/cognito/app
+              git fetch origin main
+              git reset --hard origin/main
+            else
+              rm -rf /docker/cognito/app
+              git clone https://github.com/BortoneA/cognito.git /docker/cognito/app
+            fi'
+
+      - name: Build and restart
+        run: |
+          ssh root@93.127.163.19 'set -e
+            cd /docker/cognito
+            docker compose up -d --build --force-recreate'
+
+      - name: Verify production
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error --max-time 10 https://cognito.daifukuweb.tech/health; then
+              echo
+              exit 0
+            fi
+            sleep 5
+          done
+          exit 1

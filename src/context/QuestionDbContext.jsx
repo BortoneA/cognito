@@ -185,6 +185,31 @@ export const QuestionDbProvider = ({ children }) => {
     exportFullDatabaseJSON(questions);
   };
 
+  const syncDatabaseLocally = async () => {
+    try {
+      const list = await performSync(true);
+      return { success: true, count: list.length };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  };
+
+  const importFullDatabase = async (jsonString) => {
+    try {
+      const parsed = JSON.parse(jsonString);
+      const list = Array.isArray(parsed) ? parsed : (parsed.questoes || []);
+      if (list.length > 0) {
+        await syncFullDatasetToLocalDB(list);
+        setQuestions(list);
+        notifyOtherTabs();
+        return { success: true, count: list.length };
+      }
+      return { success: false, error: "Arquivo inválido ou sem questões" };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  };
+
   return (
     <QuestionDbContext.Provider
       value={{
@@ -199,7 +224,10 @@ export const QuestionDbProvider = ({ children }) => {
         localEditsMap,
         editQuestion,
         resetAllEdits,
+        resetEdits: resetAllEdits,
         forceFullResync,
+        syncDatabaseLocally,
+        importFullDatabase,
         exportDatabase,
         performSync
       }}

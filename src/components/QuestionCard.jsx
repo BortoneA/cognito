@@ -237,14 +237,6 @@ const QuestionCard = ({ question, isSimulationMode = false, onAnswerSimulation, 
         </div>
       </div>
 
-      {/* Disease Tag */}
-      {question.doenca_ou_conjunto_de_doencas && (
-        <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-200 text-xs font-semibold">
-          <BookOpen className="w-4 h-4 text-indigo-400 shrink-0" />
-          <span>Tema Clínico: <strong className="text-white font-bold">{question.doenca_ou_conjunto_de_doencas}</strong></span>
-        </div>
-      )}
-
       {/* Enunciado with scalable typography */}
       <div 
         onMouseUp={handleHighlightSelection}
@@ -366,8 +358,16 @@ const QuestionCard = ({ question, isSimulationMode = false, onAnswerSimulation, 
           </div>
 
           {showExplanation && (
-            <div className="text-xs sm:text-sm text-slate-200 leading-relaxed font-normal whitespace-pre-line space-y-3">
-              {question.explicacao}
+            <div className="space-y-3">
+              {question.doenca_ou_conjunto_de_doencas && (
+                <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-200 text-xs font-semibold w-fit">
+                  <BookOpen className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                  <span>Tema Clínico: <strong className="text-white font-bold">{question.doenca_ou_conjunto_de_doencas}</strong></span>
+                </div>
+              )}
+              <div className="text-xs sm:text-sm text-slate-200 leading-relaxed font-normal whitespace-pre-line">
+                {question.explicacao}
+              </div>
             </div>
           )}
         </div>

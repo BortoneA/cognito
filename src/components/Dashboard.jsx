@@ -17,38 +17,38 @@ import {
   XCircle, 
   HelpCircle, 
   AlertTriangle, 
-  Award,
-  ArrowRight,
-  Activity,
-  Flame
+  Award, 
+  ArrowRight, 
+  Activity, 
+  Flame 
 } from 'lucide-react';
 import StatCard from './StatCard';
+import ActivityRings from './ActivityRings';
 import ActivityHeatmap from './ActivityHeatmap';
 import ProgressTimeline from './ProgressTimeline';
 import CompetencyRadar from './CompetencyRadar';
 import { useUserProgress } from '../context/UserProgressContext';
 import { useQuestionDb } from '../context/QuestionDbContext';
-import {
-  getOverviewKPIs,
-  getAreaAnalytics,
-  getSubareaAnalytics,
-  getYearlyAnalytics,
-  getWeaknessDiagnostics
+import { 
+  getOverviewKPIs, 
+  getAreaAnalytics, 
+  getSubareaAnalytics, 
+  getYearlyAnalytics, 
+  getWeaknessDiagnostics 
 } from '../utils/analyticsHelpers';
-
 
 const Dashboard = ({ onSelectFilter }) => {
   const { progress } = useUserProgress();
   const { questions } = useQuestionDb();
   const userAnswers = progress.answers || {};
 
+  const [activeChartTab, setActiveChartTab] = useState('areas');
+
   const kpis = getOverviewKPIs(questions, progress);
   const areaData = getAreaAnalytics(questions, userAnswers);
   const subareaData = getSubareaAnalytics(questions, userAnswers, 15);
   const yearlyData = getYearlyAnalytics(questions, userAnswers);
   const weaknesses = getWeaknessDiagnostics(questions, userAnswers);
-
-  const [activeChartTab, setActiveChartTab] = useState('areas');
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
@@ -77,7 +77,7 @@ const Dashboard = ({ onSelectFilter }) => {
     <div className="space-y-8 pb-12">
       
       {/* Apple Health/Fitness Style Header Banner */}
-      <div className="relative overflow-hidden rounded-[32px] apple-glass p-8 border border-white/10 shadow-2xl">
+      <div className="relative overflow-hidden rounded-[36px] apple-glass p-6 sm:p-8 border border-white/10 shadow-2xl specular-highlight">
         <div className="absolute -right-20 -top-20 w-80 h-80 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none"></div>
         <div className="absolute right-40 -bottom-20 w-60 h-60 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
@@ -98,28 +98,41 @@ const Dashboard = ({ onSelectFilter }) => {
               Análise de Precisão & Métricas
             </h1>
             <p className="text-sm text-slate-300 leading-relaxed font-normal">
-              Acompanhe seu rendimento em tempo real com estatísticas divididas em 15 áreas clínicas e 20 subespecialidades do exame PNA.
+              Acompanhe seu rendimento em tempo real com estatísticas divididas em 15 áreas clínicas e subespecialidades do exame PNA.
             </p>
           </div>
 
-          {/* Quick Apple Counter */}
-          <div className="flex items-center gap-4 apple-segmented-bg p-4 border border-white/10 shadow-lg">
-            <div className="text-center px-2">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Banco Total</span>
-              <span className="text-2xl font-black text-white">{questions.length}</span>
-              <span className="text-[10px] text-slate-400">questões</span>
+          {/* Time and study stats */}
+          <div className="flex items-center gap-4 bg-slate-900/60 p-4 rounded-3xl border border-white/10 backdrop-blur-md shadow-inner">
+            <div className="text-center px-3">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-1">
+                Tempo Médio
+              </span>
+              <span className="text-2xl font-black text-indigo-400">
+                {kpis.avgTimePerQuestionSec > 0 ? `${kpis.avgTimePerQuestionSec}s` : '--'}
+              </span>
+              <span className="text-[10px] text-slate-400 block mt-0.5">por questão</span>
             </div>
+
             <div className="h-10 w-px bg-white/10"></div>
-            <div className="text-center px-2">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Exames</span>
-              <span className="text-2xl font-black text-indigo-400">2018-24</span>
-              <span className="text-[10px] text-slate-400">7 anos</span>
+
+            <div className="text-center px-3">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-1">
+                Salvas
+              </span>
+              <span className="text-2xl font-black text-amber-400">
+                {kpis.totalSaved}
+              </span>
+              <span className="text-[10px] text-slate-400 block mt-0.5">questões</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Apple Widget KPI Cards Grid */}
+      {/* Apple Watch 3-Ring Concentric Activity Widget */}
+      <ActivityRings size={170} />
+
+      {/* Top 4 KPI Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard 
           icon={Target}
@@ -132,7 +145,7 @@ const Dashboard = ({ onSelectFilter }) => {
           icon={CheckCircle2}
           title="Acertos Clínicos"
           value={kpis.totalCorrect}
-          subtitle={`Aproveitamento direto`}
+          subtitle="Aproveitamento direto"
           color="emerald"
         />
         <StatCard 
@@ -145,6 +158,8 @@ const Dashboard = ({ onSelectFilter }) => {
         <StatCard 
           icon={HelpCircle}
           title="Não Respondidas"
+          value={kpis.totalUnanswered}
+          subtitle="Restantes do banco"
           color="amber"
         />
       </div>
@@ -174,19 +189,24 @@ const Dashboard = ({ onSelectFilter }) => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {weaknesses.map((weak, idx) => (
-              <div key={idx} className="p-4 rounded-2xl apple-card border border-white/5 flex flex-col justify-between hover:border-rose-500/40 transition-all">
-                <div>
-                  <span className="text-[10px] font-bold uppercase text-slate-400 block truncate">{weak.area}</span>
-                  <h4 className="font-extrabold text-sm text-white mt-0.5 truncate">{weak.subarea}</h4>
-                  <div className="mt-3 flex items-center justify-between text-xs font-semibold">
-                    <span className="text-rose-400">{weak.incorrect} erros</span>
-                    <span className="text-slate-400">{weak.accuracyPct}% acertos</span>
-                  </div>
+            {weaknesses.map((w, idx) => (
+              <div 
+                key={idx} 
+                className="p-4 rounded-2xl bg-rose-950/20 border border-rose-500/20 space-y-2 hover:border-rose-500/40 transition-colors"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-xs font-bold text-slate-200 line-clamp-1">{w.subarea}</span>
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 shrink-0">
+                    {w.accuracyPct}% acurácia
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-slate-400">
+                  <span>{w.incorrect} erros em {w.answered} q.</span>
+                  <span className="text-rose-400 font-semibold">{w.area}</span>
                 </div>
                 <button
-                  onClick={() => onSelectFilter({ area: weak.area, subarea: weak.subarea, status: 'incorrect' })}
-                  className="mt-3.5 w-full py-1.5 px-3 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-xs font-bold border border-rose-500/30 flex items-center justify-center gap-1.5 transition-all active:scale-95"
+                  onClick={() => onSelectFilter({ area: w.area, subarea: w.subarea, status: 'incorrect' })}
+                  className="w-full mt-1 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all"
                 >
                   <span>Refazer Erros</span>
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -313,7 +333,8 @@ const Dashboard = ({ onSelectFilter }) => {
 
             <div className="space-y-3">
               {subareaData.slice(0, 7).map((sub, idx) => {
-                const percentage = Math.round((sub.total / questions.length) * 100);
+                const totalCount = questions.length || 1;
+                const percentage = Math.round((sub.total / totalCount) * 100);
                 return (
                   <div 
                     key={idx} 
@@ -327,7 +348,7 @@ const Dashboard = ({ onSelectFilter }) => {
                     <div className="w-full h-1.5 rounded-full bg-slate-900 overflow-hidden">
                       <div 
                         className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 shadow-sm" 
-                        style={{ width: `${(sub.total / subareaData[0].total) * 100}%` }}
+                        style={{ width: `${subareaData[0] ? (sub.total / subareaData[0].total) * 100 : 0}%` }}
                       ></div>
                     </div>
                   </div>
@@ -340,7 +361,7 @@ const Dashboard = ({ onSelectFilter }) => {
             onClick={() => onSelectFilter({ status: 'all' })}
             className="mt-6 w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-extrabold shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 transition-all active:scale-95"
           >
-            <span>Ver Banco Completo (1.050 Q.)</span>
+            <span>Ver Todas as {questions.length} Questões</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>

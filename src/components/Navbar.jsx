@@ -15,6 +15,7 @@ import {
 import { useUserProgress } from '../context/UserProgressContext';
 import { useQuestionDb } from '../context/QuestionDbContext';
 import { getOverviewKPIs } from '../utils/analyticsHelpers';
+import ThemeSwitcher from './ThemeSwitcher';
 
 const Navbar = ({ activeTab, setActiveTab, onOpenDataModal, onOpenQuickTest }) => {
   const { progress } = useUserProgress();
@@ -103,6 +104,9 @@ const Navbar = ({ activeTab, setActiveTab, onOpenDataModal, onOpenQuickTest }) =
                 <Zap className="w-3.5 h-3.5 fill-white" />
                 <span className="hidden sm:inline">Teste Rápido</span>
               </button>
+
+              {/* Theme & Reading Customizer */}
+              <ThemeSwitcher />
 
               {/* DB button */}
               <button

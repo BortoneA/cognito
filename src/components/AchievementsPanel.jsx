@@ -121,10 +121,10 @@ const AchievementsPanel = () => {
                   {achievements.map(ach => (
                     <div
                       key={ach.id}
-                      className={`p-4 rounded-2xl border transition-all flex items-start gap-3 ${
+                      className={`p-4 rounded-2xl border transition-all flex items-start gap-3 relative ${
                         ach.unlocked
-                          ? `${colors.bg} ${colors.border} shadow-lg ${colors.glow}`
-                          : 'bg-slate-900/40 border-white/5 opacity-50'
+                          ? `${colors.bg} ${colors.border} shadow-xl ${colors.glow} hologram-shimmer specular-highlight`
+                          : 'bg-slate-900/40 border-white/5 opacity-40'
                       }`}
                     >
                       <div className="text-2xl shrink-0 mt-0.5">

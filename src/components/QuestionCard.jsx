@@ -139,7 +139,7 @@ const QuestionCard = ({ question, isSimulationMode = false, onAnswerSimulation, 
   const diffBadge = difficultyColors[diffKey] || difficultyColors['a classificar'];
 
   return (
-    <div className="rounded-[32px] apple-card p-6 sm:p-8 space-y-6 border border-white/10 shadow-2xl transition-all duration-300">
+    <div className="rounded-[32px] apple-card p-6 sm:p-8 space-y-6 border border-white/10 shadow-2xl transition-all duration-300 specular-highlight">
       
       {/* Question Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4">
@@ -172,7 +172,7 @@ const QuestionCard = ({ question, isSimulationMode = false, onAnswerSimulation, 
             <button
               onClick={() => onEditQuestion(question)}
               title="Editar Questão no Banco Local"
-              className="p-2 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-indigo-400 border border-white/10 transition-all text-xs flex items-center gap-1 touch-target"
+              className="p-2 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-indigo-400 border border-white/10 transition-all text-xs flex items-center gap-1 touch-target active:scale-95"
             >
               <Edit3 className="w-4 h-4" />
             </button>
@@ -183,7 +183,7 @@ const QuestionCard = ({ question, isSimulationMode = false, onAnswerSimulation, 
             <button
               onClick={() => onOpenNote(question)}
               title="Anotação Pessoal"
-              className={`p-2 rounded-2xl border transition-all touch-target ${
+              className={`p-2 rounded-2xl border transition-all touch-target active:scale-95 ${
                 (progress.notes || {})[question.id]
                   ? 'bg-amber-500/20 border-amber-500/30 text-amber-300'
                   : 'bg-white/5 hover:bg-amber-500/10 text-slate-400 hover:text-amber-300 border-white/10'
@@ -216,7 +216,7 @@ const QuestionCard = ({ question, isSimulationMode = false, onAnswerSimulation, 
           <button
             onClick={handleCopyQuestion}
             title="Copiar Enunciado"
-            className="p-2 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-all text-xs flex items-center gap-1"
+            className="p-2 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-all text-xs flex items-center gap-1 active:scale-95"
           >
             <Share2 className="w-4 h-4" />
             {copied && <span className="text-[10px] text-emerald-400 font-bold">Copiado</span>}
@@ -226,7 +226,7 @@ const QuestionCard = ({ question, isSimulationMode = false, onAnswerSimulation, 
           <button
             onClick={() => toggleSaveQuestion(question.id)}
             title={isSaved ? "Remover Favorito" : "Favoritar Questão"}
-            className={`p-2 rounded-2xl border transition-all ${
+            className={`p-2 rounded-2xl border transition-all active:scale-95 ${
               isSaved
                 ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 glow-amber'
                 : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-amber-400 border-white/10'
@@ -245,10 +245,10 @@ const QuestionCard = ({ question, isSimulationMode = false, onAnswerSimulation, 
         </div>
       )}
 
-      {/* Enunciado */}
+      {/* Enunciado with scalable typography */}
       <div 
         onMouseUp={handleHighlightSelection}
-        className="text-sm sm:text-base leading-relaxed text-slate-100 font-normal tracking-tight"
+        className="font-scalable leading-relaxed text-slate-100 font-normal tracking-tight"
       >
         {renderHighlightedEnunciado(question.enunciado)}
       </div>

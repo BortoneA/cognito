@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { UserProgressProvider, useUserProgress } from './context/UserProgressContext';
 import { QuestionDbProvider, useQuestionDb } from './context/QuestionDbContext';
 import Navbar from './components/Navbar';
@@ -22,6 +23,7 @@ import { checkNewAchievements, ACHIEVEMENTS } from './services/achievementServic
 function MainApp() {
   const { progress, unlockAchievement } = useUserProgress();
   const { questions, isLoaded } = useQuestionDb();
+  const { zenMode, toggleZenMode } = useTheme();
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isDataModalOpen, setIsDataModalOpen] = useState(false);
@@ -77,13 +79,13 @@ function MainApp() {
 
   if (!isLoaded) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
         <div className="relative mb-6">
           <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-indigo-500 via-indigo-600 to-purple-600 flex items-center justify-center shadow-2xl shadow-indigo-500/30 text-white text-3xl animate-bounce-short">
             🩺
           </div>
         </div>
-        <h2 className="text-2xl font-black text-white tracking-tight mb-2">PNA MedPremium</h2>
+        <h2 className="text-2xl font-black tracking-tight mb-2">PNA MedPremium</h2>
         <p className="text-xs text-slate-400 max-w-sm leading-relaxed mb-6">
           Carregando 5.073 questões clínicas e sincronizando banco local...
         </p>
@@ -95,17 +97,32 @@ function MainApp() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
-      {/* Header Navigation */}
-      <Navbar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        onOpenDataModal={() => setIsDataModalOpen(true)}
-        onOpenQuickTest={() => setIsQuickTestOpen(true)}
-      />
+    <div className="min-h-screen flex flex-col font-sans selection:bg-indigo-500 selection:text-white transition-colors duration-300">
+      {/* Zen Mode Exit Bar */}
+      {zenMode && (
+        <div className="sticky top-0 z-50 p-2 bg-amber-500/10 border-b border-amber-500/20 backdrop-blur-md flex items-center justify-between px-6">
+          <span className="text-xs font-bold text-amber-300">🧘 Modo Foco Zen Ativo</span>
+          <button
+            onClick={toggleZenMode}
+            className="px-3 py-1 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition-all"
+          >
+            Sair do Foco
+          </button>
+        </div>
+      )}
 
-      {/* Daily Goal Banner */}
-      <DailyGoalBanner />
+      {/* Header Navigation (Hidden in Zen Mode) */}
+      {!zenMode && (
+        <>
+          <Navbar
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            onOpenDataModal={() => setIsDataModalOpen(true)}
+            onOpenQuickTest={() => setIsQuickTestOpen(true)}
+          />
+          <DailyGoalBanner />
+        </>
+      )}
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8 main-with-bottom-nav">
@@ -211,10 +228,12 @@ function MainApp() {
 
 export default function App() {
   return (
-    <UserProgressProvider>
-      <QuestionDbProvider>
-        <MainApp />
-      </QuestionDbProvider>
-    </UserProgressProvider>
+    <ThemeProvider>
+      <UserProgressProvider>
+        <QuestionDbProvider>
+          <MainApp />
+        </QuestionDbProvider>
+      </UserProgressProvider>
+    </ThemeProvider>
   );
 }

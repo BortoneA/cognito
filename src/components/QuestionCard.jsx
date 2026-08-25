@@ -256,6 +256,7 @@ const QuestionCard = ({ question, isSimulationMode = false, onAnswerSimulation, 
       {/* Options Stack */}
       <div className="space-y-3 pt-1">
         {Object.entries(question.alternativas || {}).map(([key, opt]) => {
+          const optionText = typeof opt === 'string' ? opt : (opt?.texto || String(opt || ''));
           const isSelected = selectedOption === key;
           const isCorrectAnswer = key === question.resposta_correta;
           const isScratched = !!scratchedOptions[key];
@@ -297,7 +298,7 @@ const QuestionCard = ({ question, isSimulationMode = false, onAnswerSimulation, 
 
               {/* Option Text */}
               <div className="flex-1 text-xs sm:text-sm font-medium pt-0.5 leading-relaxed">
-                {opt.texto}
+                {optionText}
               </div>
 
               {/* Scratch-out Tool */}

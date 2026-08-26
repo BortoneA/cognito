@@ -1,6 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import staticDatabase from '../data/banco_questoes_pna.json';
 import { 
+  loadAllQuestionsFromNeon, 
+  saveQuestionToNeon 
+} from '../services/neonDatabaseService';
+import { 
   getLocalQuestionEdits, 
   saveLocalQuestionEdit, 
   clearAllLocalQuestionEdits,
@@ -19,7 +23,7 @@ const initialQuestions = staticDatabase?.questoes || [];
 export const QuestionDbProvider = ({ children }) => {
   const [questions, setQuestions] = useState(initialQuestions);
   const [localEditsMap, setLocalEditsMap] = useState({});
-  const [isLoaded, setIsLoaded] = useState(false); // Waits for initial Neon sync
+  const [isLoaded, setIsLoaded] = useState(false); // Direct Neon check
   const [isSynchronized, setIsSynchronized] = useState(true);
   const [lastSyncTime, setLastSyncTime] = useState(Date.now());
   const [loadError, setLoadError] = useState(null);
@@ -27,38 +31,45 @@ export const QuestionDbProvider = ({ children }) => {
   const [syncStatusText, setSyncStatusText] = useState('⚡ Neon PostgreSQL Cloud (Conectando...)');
   const [cloudSource, setCloudSource] = useState('Neon PostgreSQL Cloud (Master)');
 
-  // Master Neon PostgreSQL First Synchronization Routine
+  // Master Neon PostgreSQL Direct Synchronization Routine
   const performSync = useCallback(async (forceFull = false) => {
     try {
       setIsSyncing(true);
       let baseQuestions = [];
       let sourceName = 'Neon PostgreSQL Cloud (Master)';
 
-      // 1. PRIORIDADE 1: Puxar do Neon PostgreSQL Cloud
+      // 1. PRIORIDADE 1: Conexão Direta ao Neon PostgreSQL Cloud via Driver Serverless
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-        const res = await fetch('/api/questions', { 
-          headers: { 'ngrok-skip-browser-warning': 'true' },
-          signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.questoes && data.questoes.length >= 5000) {
-            baseQuestions = data.questoes;
-            sourceName = 'Neon PostgreSQL Cloud (Master)';
-            setCloudSource('Neon PostgreSQL Cloud (Master)');
-            syncFullDatasetToLocalDB(baseQuestions, CURRENT_DATABASE_VERSION).catch(() => {});
-          }
+        const neonRes = await loadAllQuestionsFromNeon();
+        if (neonRes.success && neonRes.questoes && neonRes.questoes.length >= 5000) {
+          baseQuestions = neonRes.questoes;
+          sourceName = 'Neon PostgreSQL Cloud (Master)';
+          setCloudSource('Neon PostgreSQL Cloud (Master)');
+          syncFullDatasetToLocalDB(baseQuestions, CURRENT_DATABASE_VERSION).catch(() => {});
         }
       } catch (neonErr) {
-        console.debug('Neon PostgreSQL remote query notice:', neonErr.message);
+        console.debug('[QuestionDb] Neon direct query notice:', neonErr.message);
       }
 
-      // 2. PRIORIDADE 2: Fallback para IndexedDB Cache Local se Neon indisponível
+      // 2. PRIORIDADE 2: Fallback para rota /api/questions (se rodando via server.js local)
+      if (baseQuestions.length === 0) {
+        try {
+          const res = await fetch('/api/questions', { 
+            headers: { 'ngrok-skip-browser-warning': 'true' }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.questoes && data.questoes.length >= 5000) {
+              baseQuestions = data.questoes;
+              sourceName = 'Neon PostgreSQL Local Proxy';
+              setCloudSource('Neon PostgreSQL Cloud');
+              syncFullDatasetToLocalDB(baseQuestions, CURRENT_DATABASE_VERSION).catch(() => {});
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 3. PRIORIDADE 3: Fallback para IndexedDB Cache Local se offline
       if (baseQuestions.length === 0) {
         const syncMeta = getSyncMetadata();
         const isVersionValid = syncMeta?.version === CURRENT_DATABASE_VERSION && (syncMeta?.count || 0) >= 5000;
@@ -72,7 +83,7 @@ export const QuestionDbProvider = ({ children }) => {
         }
       }
 
-      // 3. PRIORIDADE 3: Fallback para bundle estático integrado
+      // 4. PRIORIDADE 4: Fallback para bundle estático integrado
       if (baseQuestions.length === 0) {
         baseQuestions = initialQuestions;
         sourceName = 'Bundle Estático';
@@ -82,7 +93,7 @@ export const QuestionDbProvider = ({ children }) => {
         }
       }
 
-      // 4. Incorporar edições personalizadas do usuário
+      // 5. Incorporar edições personalizadas
       const edits = await getLocalQuestionEdits();
       setLocalEditsMap(edits || {});
 
@@ -113,7 +124,7 @@ export const QuestionDbProvider = ({ children }) => {
     }
   }, []);
 
-  // Initial Background Sync + Continuous Polling Heartbeat
+  // Initial Direct Sync + Periodic Cloud Heartbeat every 15s
   useEffect(() => {
     performSync(true);
 
@@ -140,7 +151,6 @@ export const QuestionDbProvider = ({ children }) => {
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('online', () => performSync(true));
 
-    // Continuous Real-Time Neon Cloud Heartbeat every 15s
     const interval = setInterval(() => {
       performSync(false);
     }, 15000);
@@ -164,24 +174,29 @@ export const QuestionDbProvider = ({ children }) => {
     }
   };
 
-  // Save/Edit a question directly in Neon PostgreSQL Master
+  // Save/Edit a question directly in Neon PostgreSQL Cloud
   const editQuestion = async (updatedQuestion) => {
     const saved = await saveLocalQuestionEdit(updatedQuestion);
     if (!saved) return false;
 
-    // Neon PostgreSQL Cloud Direct Write
+    // 1. Direct Neon PostgreSQL Driver Write
     try {
-      await fetch('/api/save-question', {
+      await saveQuestionToNeon(saved);
+    } catch (e) {
+      console.debug('Neon direct save notice:', e);
+    }
+
+    // 2. Server.js API route write (if running)
+    try {
+      fetch('/api/save-question', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'ngrok-skip-browser-warning': 'true'
         },
         body: JSON.stringify(saved)
-      });
-    } catch (e) {
-      console.debug('Neon save question offline fallback');
-    }
+      }).catch(() => {});
+    } catch (_) {}
 
     setLocalEditsMap(prev => ({
       ...prev,

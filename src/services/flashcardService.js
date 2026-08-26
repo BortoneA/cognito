@@ -1,7 +1,11 @@
 /**
  * Flashcard Service implementing Anki SM-2 Spaced Repetition Algorithm
- * with Real-Time Neon PostgreSQL Cloud Sync
+ * with Direct Neon PostgreSQL Universal Cloud Sync
  */
+import { 
+  loadFlashcardsFromNeon, 
+  saveFlashcardsToNeon as saveFlashcardsNeonDirect 
+} from './neonDatabaseService';
 
 const FLASHCARDS_STORAGE_KEY = 'PNA_MED_FLASHCARDS_V2';
 
@@ -64,6 +68,18 @@ export const getStoredFlashcards = () => {
 };
 
 export const fetchFlashcardsFromNeon = async () => {
+  // 1. Direct Neon Serverless Query First
+  try {
+    const res = await loadFlashcardsFromNeon();
+    if (res.success && Array.isArray(res.flashcards) && res.flashcards.length > 0) {
+      saveFlashcardsLocal(res.flashcards);
+      return res.flashcards;
+    }
+  } catch (neonErr) {
+    console.debug('[Flashcards] Direct Neon query notice:', neonErr.message);
+  }
+
+  // 2. Fallback to API route
   try {
     const res = await fetch('/api/flashcards', {
       headers: { 'ngrok-skip-browser-warning': 'true' }
@@ -78,6 +94,7 @@ export const fetchFlashcardsFromNeon = async () => {
   } catch (e) {
     console.debug('Neon flashcards load offline notice:', e.message);
   }
+
   return getStoredFlashcards();
 };
 
@@ -93,7 +110,16 @@ export const saveFlashcards = (cards) => {
   // 1. Save local
   saveFlashcardsLocal(cards);
 
-  // 2. Save directly to Neon PostgreSQL Cloud
+  // 2. Direct Neon Serverless Write
+  try {
+    saveFlashcardsNeonDirect(cards).catch(err => {
+      console.debug('[Flashcards] Direct save notice:', err.message);
+    });
+  } catch (e) {
+    console.debug('[Flashcards] Direct save catch:', e.message);
+  }
+
+  // 3. Fallback server.js route write
   try {
     fetch('/api/save-flashcards', {
       method: 'POST',
@@ -102,15 +128,14 @@ export const saveFlashcards = (cards) => {
         'ngrok-skip-browser-warning': 'true'
       },
       body: JSON.stringify({ flashcards: cards })
-    }).catch(err => console.debug('Neon flashcards background sync notice:', err.message));
-  } catch (e) {
-    console.debug('Neon flashcards save offline fallback');
-  }
+    }).catch(() => {});
+  } catch (_) {}
 };
 
 export const clearAllFlashcards = () => {
   try {
     localStorage.removeItem(FLASHCARDS_STORAGE_KEY);
+    saveFlashcardsNeonDirect([]).catch(() => {});
     fetch('/api/save-flashcards', {
       method: 'POST',
       headers: { 

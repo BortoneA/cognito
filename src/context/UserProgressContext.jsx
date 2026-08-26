@@ -1,4 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { 
+  loadUserProgressFromNeon, 
+  saveUserProgressToNeon as saveNeonDirect 
+} from '../services/neonDatabaseService';
 
 const UserProgressContext = createContext();
 
@@ -15,23 +19,28 @@ const defaultState = {
   dailyGoal: 20,        // questões por dia
 };
 
-// Immediate Neon Cloud Persistence Helper
+// Universal Direct Neon Cloud Persistence Helper
 const saveProgressToNeon = async (payload) => {
+  // 1. Direct Neon Serverless Driver Write (HTTPS Direct to Neon AWS)
   try {
-    const res = await fetch('/api/save-progress', {
+    saveNeonDirect(payload).catch(err => {
+      console.debug('[UserProgress] Neon direct save notice:', err.message);
+    });
+  } catch (e) {
+    console.debug('[UserProgress] Neon direct save catch:', e.message);
+  }
+
+  // 2. Server API Route Write (for local server disk backup if available)
+  try {
+    fetch('/api/save-progress', {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
         'ngrok-skip-browser-warning': 'true'
       },
       body: JSON.stringify(payload)
-    });
-    if (!res.ok) {
-      console.debug('Neon save response notice:', res.statusText);
-    }
-  } catch (e) {
-    console.debug('Neon progress save offline notice:', e.message);
-  }
+    }).catch(() => {});
+  } catch (_) {}
 };
 
 export const UserProgressProvider = ({ children }) => {
@@ -48,8 +57,36 @@ export const UserProgressProvider = ({ children }) => {
   const [isCloudSynced, setIsCloudSynced] = useState(false);
   const [lastCloudSyncTime, setLastCloudSyncTime] = useState(null);
 
-  // Master function to pull fresh progress directly from Neon PostgreSQL
+  // Master function to pull fresh progress directly from Neon PostgreSQL Cloud
   const refreshProgressFromNeon = useCallback(async () => {
+    // 1. Try Direct Neon Serverless Query First
+    try {
+      const neonRes = await loadUserProgressFromNeon();
+      if (neonRes.success && neonRes.data && neonRes.data.answers) {
+        const cloudData = neonRes.data;
+        setProgress(prev => {
+          const merged = {
+            ...defaultState,
+            ...prev,
+            ...cloudData,
+            answers: { ...prev.answers, ...cloudData.answers },
+            savedQuestions: { ...prev.savedQuestions, ...cloudData.savedQuestions },
+            notes: { ...prev.notes, ...cloudData.notes }
+          };
+          try {
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(merged));
+          } catch (_) {}
+          return merged;
+        });
+        setIsCloudSynced(true);
+        setLastCloudSyncTime(Date.now());
+        return;
+      }
+    } catch (neonErr) {
+      console.debug('[UserProgress] Direct Neon query notice:', neonErr.message);
+    }
+
+    // 2. Fallback to /api/load-progress if local server running
     try {
       const res = await fetch('/api/load-progress', {
         headers: { 'ngrok-skip-browser-warning': 'true' }
@@ -76,7 +113,7 @@ export const UserProgressProvider = ({ children }) => {
         }
       }
     } catch (e) {
-      console.debug('Neon progress poll offline notice');
+      console.debug('Neon progress fallback notice');
     }
   }, []);
 
@@ -84,10 +121,10 @@ export const UserProgressProvider = ({ children }) => {
   useEffect(() => {
     refreshProgressFromNeon();
 
-    // 2. Real-Time Heartbeat: Auto-pull every 20 seconds from Neon for multi-device sync
+    // 2. Real-Time Heartbeat: Auto-pull every 15 seconds from Neon for multi-device sync
     const interval = setInterval(() => {
       refreshProgressFromNeon();
-    }, 20000);
+    }, 15000);
 
     const handleOnline = () => {
       refreshProgressFromNeon();

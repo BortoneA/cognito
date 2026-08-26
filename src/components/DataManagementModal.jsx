@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { X, Download, Upload, Trash2, Database, Check, Edit3, RefreshCw, HardDrive, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { X, Download, Upload, Trash2, Database, Check, Edit3, RefreshCw, HardDrive, CheckCircle2, ShieldCheck, Zap, Cloud, Sparkles } from 'lucide-react';
 import { useUserProgress } from '../context/UserProgressContext';
 import { useQuestionDb } from '../context/QuestionDbContext';
 
 const DataManagementModal = ({ isOpen, onClose }) => {
-  const { progress, exportData, importData, resetProgress } = useUserProgress();
+  const { progress, exportData, importData, resetProgress, refreshProgressFromNeon } = useUserProgress();
   const { 
     questions, 
     localEditsCount, 
@@ -14,7 +14,9 @@ const DataManagementModal = ({ isOpen, onClose }) => {
     syncDatabaseLocally, 
     resetEdits, 
     importFullDatabase, 
-    exportDatabase 
+    exportDatabase,
+    performSync,
+    cloudSource
   } = useQuestionDb();
 
   const [importStatus, setImportStatus] = useState(null);
@@ -22,12 +24,14 @@ const DataManagementModal = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null;
 
-  const handleManualSync = async () => {
-    const res = await syncDatabaseLocally();
-    if (res.success) {
-      setSyncFeedback({ success: true, message: `Banco sincronizado com sucesso! (${res.count} questões salvas no IndexedDB local)` });
-    } else {
-      setSyncFeedback({ success: false, message: `Erro ao sincronizar: ${res.error}` });
+  const handleManualNeonSync = async () => {
+    setSyncFeedback({ loading: true, message: 'Consultando Neon PostgreSQL Cloud Master...' });
+    try {
+      await refreshProgressFromNeon();
+      const list = await performSync(true);
+      setSyncFeedback({ success: true, message: `Sincronização Neon Cloud concluída! (${list.length} questões e métricas ativas)` });
+    } catch (e) {
+      setSyncFeedback({ success: false, message: `Erro ao conectar com Neon: ${e.message}` });
     }
     setTimeout(() => setSyncFeedback(null), 4000);
   };
@@ -40,7 +44,7 @@ const DataManagementModal = ({ isOpen, onClose }) => {
     reader.onload = (event) => {
       const success = importData(event.target.result);
       if (success) {
-        setImportStatus({ success: true, message: 'Dados de progresso importados com sucesso!' });
+        setImportStatus({ success: true, message: 'Dados de progresso importados e enviados ao Neon Cloud!' });
       } else {
         setImportStatus({ success: false, message: 'Erro ao importar arquivo JSON de progresso.' });
       }
@@ -57,7 +61,7 @@ const DataManagementModal = ({ isOpen, onClose }) => {
     reader.onload = async (event) => {
       const result = await importFullDatabase(event.target.result);
       if (result.success) {
-        setImportStatus({ success: true, message: `Banco local atualizado com sucesso (${result.count} questões importadas)!` });
+        setImportStatus({ success: true, message: `Banco atualizado com sucesso (${result.count} questões importadas)!` });
       } else {
         setImportStatus({ success: false, message: `Erro ao importar banco: ${result.message}` });
       }
@@ -67,16 +71,16 @@ const DataManagementModal = ({ isOpen, onClose }) => {
   };
 
   const handleConfirmReset = () => {
-    if (window.confirm("Tem certeza que deseja apagar todo o seu histórico de respostas, anotações e favoritos? Esta ação não pode ser desfeita.")) {
+    if (window.confirm("Atenção: Deseja realmente zerar todo o seu histórico de desempenho e anotações no Neon DB?")) {
       resetProgress();
       onClose();
     }
   };
 
   const handleResetQuestionEdits = async () => {
-    if (window.confirm("Tem certeza que deseja restaurar as edições locais das questões e voltar para a versão original do arquivo?")) {
+    if (window.confirm("Deseja restaurar as edições e sincronizar novamente a versão original do Neon?")) {
       await resetEdits();
-      alert("Edições restauradas para a versão original do banco!");
+      alert("Edições restauradas com sucesso a partir do Neon!");
     }
   };
 
@@ -85,192 +89,126 @@ const DataManagementModal = ({ isOpen, onClose }) => {
   const totalNotes = Object.keys(progress.notes || {}).length;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xl">
-      <div className="relative w-full max-w-lg rounded-[32px] apple-glass border border-white/10 p-7 space-y-6 shadow-2xl animate-in fade-in zoom-in duration-200 max-h-[90dvh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xl animate-in fade-in duration-200">
+      <div className="relative w-full max-w-lg rounded-[32px] apple-glass border border-indigo-500/20 p-7 space-y-6 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90dvh] overflow-y-auto">
         
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/10 pb-4">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
-              <Database className="w-5 h-5" />
+            <div className="p-2.5 rounded-2xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/40 shadow-lg shadow-indigo-500/20">
+              <Zap className="w-5 h-5 fill-indigo-400" />
             </div>
             <div>
-              <h3 className="text-base font-extrabold text-white">Banco de Dados Local & Sincronização</h3>
-              <p className="text-xs text-slate-400">Armazenamento local permanente (IndexedDB • 100% Offline)</p>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-black text-white">Neon PostgreSQL Cloud Master</h3>
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  Prioritário
+                </span>
+              </div>
+              <p className="text-xs text-indigo-300/80">Sincronização em Nuvem em Tempo Real (AWS Neon DB Cluster)</p>
             </div>
           </div>
-          <button
+          <button 
             onClick={onClose}
-            className="p-2 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-white/10 transition-colors"
+            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Local Sync Health Banner */}
-        <div className="p-4 rounded-2xl bg-emerald-950/30 border border-emerald-500/30 space-y-2">
+        {/* Sync Feedback Message */}
+        {syncFeedback && (
+          <div className={`p-3.5 rounded-2xl text-xs flex items-center gap-2.5 border ${
+            syncFeedback.loading ? 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20 animate-pulse' :
+            syncFeedback.success ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' : 
+            'bg-rose-500/10 text-rose-300 border-rose-500/20'
+          }`}>
+            <RefreshCw className={`w-4 h-4 shrink-0 ${syncFeedback.loading ? 'animate-spin' : ''}`} />
+            <span className="font-semibold">{syncFeedback.message}</span>
+          </div>
+        )}
+
+        {/* Live Neon Status Card */}
+        <div className="p-4.5 rounded-2xl bg-gradient-to-br from-indigo-950/40 via-slate-900/60 to-purple-950/40 border border-indigo-500/30 space-y-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-xs font-black text-emerald-300">Sincronizado no Dispositivo (IndexedDB)</span>
-            </div>
-            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-              Offline Ativo
+            <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+              <Cloud className="w-4 h-4 text-indigo-400" />
+              Fonte de Dados Ativa:
+            </span>
+            <span className="text-xs font-black text-emerald-400 flex items-center gap-1">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              {cloudSource}
             </span>
           </div>
-          <p className="text-[11px] text-slate-300 leading-relaxed">
-            Todas as <strong>{questions.length} questões</strong> estão armazenadas localmente no seu navegador. Você pode resolver simulados, editar questões e usar flashcards sem conexão à internet.
-          </p>
-          {lastSyncTime && (
-            <p className="text-[10px] text-slate-400">
-              Última sincronização local: {new Date(lastSyncTime).toLocaleTimeString('pt-BR')} • {new Date(lastSyncTime).toLocaleDateString('pt-BR')}
-            </p>
-          )}
-        </div>
 
-        {/* Current Stats */}
-        <div className="grid grid-cols-4 gap-2 apple-segmented-bg p-3 border border-white/10 text-center">
-          <div>
-            <span className="text-[9px] uppercase font-bold text-slate-400 block tracking-wider">Questões</span>
-            <span className="text-base font-black text-indigo-400">{questions.length}</span>
+          <div className="grid grid-cols-3 gap-2 pt-2 border-t border-white/5 text-center">
+            <div className="p-2.5 rounded-xl bg-black/20 border border-white/5">
+              <span className="text-[10px] text-slate-400 block font-semibold">Questões</span>
+              <span className="text-sm font-black text-indigo-400">{questions.length}</span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-black/20 border border-white/5">
+              <span className="text-[10px] text-slate-400 block font-semibold">Respostas</span>
+              <span className="text-sm font-black text-emerald-400">{totalAnswers}</span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-black/20 border border-white/5">
+              <span className="text-[10px] text-slate-400 block font-semibold">Favoritas/Notas</span>
+              <span className="text-sm font-black text-purple-400">{totalSaved + totalNotes}</span>
+            </div>
           </div>
-          <div>
-            <span className="text-[9px] uppercase font-bold text-slate-400 block tracking-wider">Editadas</span>
-            <span className="text-base font-black text-amber-400">{localEditsCount}</span>
-          </div>
-          <div>
-            <span className="text-[9px] uppercase font-bold text-slate-400 block tracking-wider">Respondidas</span>
-            <span className="text-base font-black text-emerald-400">{totalAnswers}</span>
-          </div>
-          <div>
-            <span className="text-[9px] uppercase font-bold text-slate-400 block tracking-wider">Anotações</span>
-            <span className="text-base font-black text-purple-400">{totalNotes}</span>
+
+          <div className="text-[11px] text-slate-400 flex items-center justify-between pt-1">
+            <span>Última sincronização:</span>
+            <span className="font-semibold text-slate-200">
+              {new Date(lastSyncTime).toLocaleTimeString('pt-BR')}
+            </span>
           </div>
         </div>
 
-        {/* Sync & Backup Actions */}
+        {/* Actions Grid */}
         <div className="space-y-3">
-          
-          {/* Manual Sync Button */}
           <button
-            onClick={handleManualSync}
+            onClick={handleManualNeonSync}
             disabled={isSyncing}
-            className="w-full p-3.5 rounded-2xl bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-200 text-xs font-bold flex items-center justify-between transition-all active:scale-98"
+            className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-indigo-500 via-indigo-600 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/25 transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
           >
-            <div className="flex items-center gap-3">
-              <RefreshCw className={`w-5 h-5 text-indigo-400 ${isSyncing ? 'animate-spin' : ''}`} />
-              <div className="text-left">
-                <span className="block text-white font-extrabold">Forçar Sincronização Local</span>
-                <span className="text-[10px] text-slate-400 font-normal">Revalidar e salvar todas as questões no IndexedDB</span>
-              </div>
-            </div>
-            <span className="text-[10px] font-bold px-2.5 py-1 bg-indigo-500/30 rounded-xl text-indigo-300 border border-indigo-500/30">
-              {isSyncing ? 'Sincronizando...' : 'Sincronizar'}
-            </span>
+            <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+            <span>Sincronizar Agora com o Neon PostgreSQL</span>
           </button>
 
-          {syncFeedback && (
-            <div className={`p-3 rounded-2xl text-xs font-semibold flex items-center gap-2 ${
-              syncFeedback.success ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-500/40' : 'bg-rose-950/60 text-rose-300 border border-rose-500/40'
-            }`}>
-              <Check className="w-4 h-4" />
-              <span>{syncFeedback.message}</span>
-            </div>
-          )}
-
-          {/* Export Question Database JSON */}
-          <button
-            onClick={exportDatabase}
-            className="w-full p-3.5 rounded-2xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-purple-200 text-xs font-bold flex items-center justify-between transition-all active:scale-98"
-          >
-            <div className="flex items-center gap-3">
-              <Download className="w-5 h-5 text-purple-400" />
-              <div className="text-left">
-                <span className="block text-white">Exportar Banco de Questões (.JSON)</span>
-                <span className="text-[10px] text-slate-400 font-normal">Baixar o banco de {questions.length} questões com edições locais</span>
-              </div>
-            </div>
-            <span className="text-[10px] font-bold px-2.5 py-1 bg-purple-500/30 rounded-xl text-purple-300 border border-purple-500/30">Download</span>
-          </button>
-
-          {/* Import Question Database JSON */}
-          <label className="w-full p-3.5 rounded-2xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 text-purple-200 text-xs font-bold flex items-center justify-between transition-all cursor-pointer active:scale-98">
-            <div className="flex items-center gap-3">
-              <Upload className="w-5 h-5 text-purple-400" />
-              <div className="text-left">
-                <span className="block text-white">Importar Banco de Questões (.JSON)</span>
-                <span className="text-[10px] text-slate-400 font-normal">Carregar arquivo JSON para o IndexedDB local</span>
-              </div>
-            </div>
-            <span className="text-[10px] font-bold px-2.5 py-1 bg-purple-500/20 text-purple-300 rounded-xl border border-purple-500/30">Importar Banco</span>
-            <input type="file" accept=".json" onChange={handleDatabaseUpload} className="hidden" />
-          </label>
-
-          {/* Backup User Progress */}
-          <button
-            onClick={exportData}
-            className="w-full p-3.5 rounded-2xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-200 text-xs font-bold flex items-center justify-between transition-all active:scale-98"
-          >
-            <div className="flex items-center gap-3">
-              <Download className="w-5 h-5 text-indigo-400" />
-              <div className="text-left">
-                <span className="block text-white">Exportar Histórico de Progresso</span>
-                <span className="text-[10px] text-slate-400 font-normal">Baixar histórico de acertos, erros e anotações</span>
-              </div>
-            </div>
-            <span className="text-[10px] font-bold px-2.5 py-1 bg-indigo-500/30 rounded-xl text-indigo-300 border border-indigo-500/30">Progresso</span>
-          </button>
-
-          {/* Import Backup */}
-          <label className="w-full p-3.5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-200 text-xs font-bold flex items-center justify-between transition-all cursor-pointer active:scale-98">
-            <div className="flex items-center gap-3">
-              <Upload className="w-5 h-5 text-emerald-400" />
-              <div className="text-left">
-                <span className="block text-white">Importar Progresso (.JSON)</span>
-                <span className="text-[10px] text-slate-400 font-normal">Restaurar progresso salvo</span>
-              </div>
-            </div>
-            <span className="text-[10px] font-bold px-2.5 py-1 bg-emerald-500/20 text-emerald-300 rounded-xl border border-emerald-500/30">Carregar</span>
-            <input type="file" accept=".json" onChange={handleProgressUpload} className="hidden" />
-          </label>
-
-          {importStatus && (
-            <div className={`p-3 rounded-2xl text-xs font-semibold flex items-center gap-2 ${
-              importStatus.success ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-500/40' : 'bg-rose-950/60 text-rose-300 border border-rose-500/40'
-            }`}>
-              <Check className="w-4 h-4" />
-              <span>{importStatus.message}</span>
-            </div>
-          )}
-
-          {localEditsCount > 0 && (
+          <div className="grid grid-cols-2 gap-2.5">
             <button
-              onClick={handleResetQuestionEdits}
-              className="w-full p-3.5 rounded-2xl bg-amber-950/30 hover:bg-amber-950/50 border border-amber-500/30 text-amber-300 text-xs font-bold flex items-center justify-between transition-all active:scale-98"
+              onClick={exportData}
+              className="py-2.5 px-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-200 text-xs font-bold flex items-center justify-center gap-1.5 transition-all hover:border-white/20"
             >
-              <div className="flex items-center gap-3">
-                <RefreshCw className="w-5 h-5 text-amber-400" />
-                <div className="text-left">
-                  <span className="block text-amber-200">Restaurar Edições de Questões</span>
-                  <span className="text-[10px] text-slate-400 font-normal">Voltar {localEditsCount} questões editadas ao original</span>
-                </div>
-              </div>
-              <span className="text-[10px] font-bold px-2.5 py-1 bg-amber-500/20 text-amber-300 rounded-xl border border-amber-500/30">Restaurar</span>
+              <Download className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Exportar Progresso</span>
             </button>
-          )}
 
+            <button
+              onClick={exportDatabase}
+              className="py-2.5 px-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-200 text-xs font-bold flex items-center justify-center gap-1.5 transition-all hover:border-white/20"
+            >
+              <Download className="w-3.5 h-3.5 text-purple-400" />
+              <span>Exportar Banco</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Danger / Reset Area */}
+        <div className="pt-3 border-t border-white/10 flex items-center justify-between">
+          <button
+            onClick={handleResetQuestionEdits}
+            className="text-[11px] text-slate-400 hover:text-slate-200 underline font-medium transition-colors"
+          >
+            Restaurar Edições
+          </button>
           <button
             onClick={handleConfirmReset}
-            className="w-full p-3.5 rounded-2xl bg-rose-950/30 hover:bg-rose-950/50 border border-rose-500/30 text-rose-300 text-xs font-bold flex items-center justify-between transition-all active:scale-98"
+            className="text-[11px] text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1 transition-colors"
           >
-            <div className="flex items-center gap-3">
-              <Trash2 className="w-5 h-5 text-rose-400" />
-              <div className="text-left">
-                <span className="block text-rose-200">Resetar Todo o Progresso</span>
-                <span className="text-[10px] text-slate-400 font-normal">Zerar histórico e estatísticas</span>
-              </div>
-            </div>
-            <span className="text-[10px] font-bold px-2.5 py-1 bg-rose-500/20 text-rose-300 rounded-xl border border-rose-500/30">Reset</span>
+            <Trash2 className="w-3 h-3" />
+            Zerar Histórico
           </button>
         </div>
 

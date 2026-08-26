@@ -82,15 +82,18 @@ function MainApp() {
       <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
         <div className="relative mb-6">
           <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-indigo-500 via-indigo-600 to-purple-600 flex items-center justify-center shadow-2xl shadow-indigo-500/30 text-white text-3xl animate-bounce-short">
-            🩺
+            ⚡
           </div>
         </div>
-        <h2 className="text-2xl font-black tracking-tight mb-2">PNA MedPremium</h2>
-        <p className="text-xs text-slate-400 max-w-sm leading-relaxed mb-6">
-          Carregando 5.073 questões clínicas e sincronizando banco local...
+        <h2 className="text-2xl font-black tracking-tight mb-2">PNA MedPremium • Neon Cloud</h2>
+        <p className="text-xs text-indigo-300 font-bold max-w-sm leading-relaxed mb-1">
+          Sincronizando com Neon PostgreSQL Master Database...
         </p>
-        <div className="w-48 bg-slate-900 rounded-full h-1.5 overflow-hidden border border-white/10">
-          <div className="bg-gradient-to-r from-indigo-500 to-purple-500 h-full rounded-full animate-pulse w-3/4" />
+        <p className="text-[11px] text-slate-400 max-w-sm leading-relaxed mb-6">
+          Carregando 5.073 questões, flashcards e métricas de desempenho em tempo real...
+        </p>
+        <div className="w-56 bg-slate-900 rounded-full h-1.5 overflow-hidden border border-white/10">
+          <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 h-full rounded-full animate-pulse w-4/5" />
         </div>
       </div>
     );

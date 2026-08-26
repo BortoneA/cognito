@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-26T01:42:18.522Z",
+  "updatedAt": "2026-08-26T01:50:17.512Z",
   "answers": {
     "PNA2024-001": {
       "isCorrect": true,
@@ -25,12 +25,17 @@
     "2026-08-25": {
       "questions": 2,
       "flashcards": 0
+    },
+    "2026-08-26": {
+      "questions": 0,
+      "flashcards": 1
     }
   },
   "highlighterColor": "yellow",
   "unlockedBadges": {
     "first_note": 1787701843050,
-    "first_question": 1787701843050
+    "first_question": 1787701843050,
+    "first_flashcard": 1787709569586
   },
   "dailyGoal": 20
 }

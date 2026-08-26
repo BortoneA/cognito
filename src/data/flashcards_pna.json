@@ -12,12 +12,12 @@
         "triade"
       ],
       "interval": 1,
-      "repetitions": 1,
-      "easeFactor": 2.5,
-      "dueDate": 1724628000000,
-      "lastReviewed": 1724628000000,
+      "repetitions": 2,
+      "easeFactor": 2.35,
+      "dueDate": 1787795969562,
+      "lastReviewed": 1787709569562,
       "status": "review"
     }
   ],
-  "updatedAt": "2026-08-26T01:12:57.036Z"
+  "updatedAt": "2026-08-26T01:59:08.953Z"
 }

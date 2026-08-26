@@ -4,7 +4,7 @@ import { useQuestionDb } from '../context/QuestionDbContext';
 import { MEDICAL_TAXONOMY, getAvailableAreas, getSubareasByArea } from '../data/medicalTaxonomy';
 
 const QuestionEditorModal = ({ isOpen, onClose, questionToEdit }) => {
-  const { updateQuestion } = useQuestionDb();
+  const { editQuestion, updateQuestion } = useQuestionDb();
   const availableAreas = getAvailableAreas();
 
   const [formData, setFormData] = useState({
@@ -153,14 +153,17 @@ const QuestionEditorModal = ({ isOpen, onClose, questionToEdit }) => {
     }
 
     try {
-      await updateQuestion(formData);
-      setSuccessMessage('Questão gravada no banco de dados local com sucesso!');
+      const saveFn = editQuestion || updateQuestion;
+      if (typeof saveFn === 'function') {
+        await saveFn(formData);
+      }
+      setSuccessMessage('Questão gravada no Neon PostgreSQL com sucesso!');
       setTimeout(() => {
         setSuccessMessage('');
         onClose();
       }, 1200);
     } catch (err) {
-      alert("Erro ao gravar questão: " + err.message);
+      alert("Erro ao gravar questão: " + (err?.message || String(err)));
     }
   };
 

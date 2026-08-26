@@ -259,6 +259,7 @@ export const QuestionDbProvider = ({ children }) => {
         localEditsCount: Object.keys(localEditsMap).length,
         localEditsMap,
         editQuestion,
+        updateQuestion: editQuestion,
         resetAllEdits,
         resetEdits: resetAllEdits,
         forceFullResync,

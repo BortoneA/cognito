@@ -1,17 +1,17 @@
 {
-  "updatedAt": "2026-08-25T23:49:21.502Z",
+  "updatedAt": "2026-08-25T23:51:55.492Z",
   "answers": {
     "PNA2024-001": {
-      "selectedOption": "B",
       "isCorrect": true,
       "timestamp": 1724628000000,
-      "timeSpentMs": 45000
+      "timeSpentMs": 45000,
+      "selectedOption": "B"
     },
     "PNA2024-002": {
-      "selectedOption": "A",
       "isCorrect": true,
       "timestamp": 1724628000000,
-      "timeSpentMs": 32000
+      "timeSpentMs": 32000,
+      "selectedOption": "A"
     }
   },
   "savedQuestions": {
@@ -26,5 +26,11 @@
       "questions": 2,
       "flashcards": 0
     }
-  }
+  },
+  "highlighterColor": "yellow",
+  "unlockedBadges": {
+    "first_note": 1787701843050,
+    "first_question": 1787701843050
+  },
+  "dailyGoal": 20
 }

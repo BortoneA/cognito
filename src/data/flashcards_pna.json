@@ -1,0 +1,23 @@
+{
+  "flashcards": [
+    {
+      "id": "fc-test-001",
+      "front": "Tríade de Charcot na Colangite Aguda",
+      "back": "Febre com calafrios + Icterícia + Dor no hipocôndrio direito",
+      "area": "Cirurgia Geral",
+      "subarea": "Cirurgia Hepatobiliopancreática",
+      "theme": "Colangite Aguda",
+      "tags": [
+        "urgencia",
+        "triade"
+      ],
+      "interval": 1,
+      "repetitions": 1,
+      "easeFactor": 2.5,
+      "dueDate": 1724628000000,
+      "lastReviewed": 1724628000000,
+      "status": "review"
+    }
+  ],
+  "updatedAt": "2026-08-26T01:12:57.036Z"
+}

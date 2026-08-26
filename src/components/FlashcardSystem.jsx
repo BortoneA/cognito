@@ -25,6 +25,7 @@ import { useUserProgress } from '../context/UserProgressContext';
 import ActivityHeatmap from './ActivityHeatmap';
 import { 
   getStoredFlashcards, 
+  fetchFlashcardsFromNeon,
   saveFlashcards, 
   calculateSM2, 
   clearAllFlashcards,
@@ -38,7 +39,7 @@ const FlashcardSystem = () => {
   const { progress, recordActivity } = useUserProgress();
   const userAnswers = progress.answers || {};
 
-  const [flashcards, setFlashcards] = useState([]);
+  const [flashcards, setFlashcards] = useState(getStoredFlashcards() || []);
   const [activeArea, setActiveArea] = useState('all');
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -57,10 +58,13 @@ const FlashcardSystem = () => {
     theme: ''
   });
 
-  // Load only stored cards (no auto-population with 5,000 cards)
+  // Load from Neon Cloud Database on mount
   useEffect(() => {
-    const stored = getStoredFlashcards();
-    setFlashcards(stored || []);
+    fetchFlashcardsFromNeon().then(cards => {
+      if (cards && cards.length > 0) {
+        setFlashcards(cards);
+      }
+    });
   }, []);
 
   // Filter cards by active area

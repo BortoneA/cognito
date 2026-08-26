@@ -10,14 +10,16 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PORT = process.env.PORT || 4000;
-const DIST_DIR = path.join(__dirname, 'dist');
 const DATA_DIR = path.join(__dirname, 'src', 'data');
 const PUBLIC_DATA_DIR = path.join(__dirname, 'public', 'data');
+const DIST_DIR = path.join(__dirname, 'dist');
 
 const PROGRESS_FILE = path.join(DATA_DIR, 'user_progress_pna.json');
 const PUBLIC_PROGRESS_FILE = path.join(PUBLIC_DATA_DIR, 'user_progress_pna.json');
 const QUESTIONS_FILE = path.join(DATA_DIR, 'banco_questoes_pna.json');
 const PUBLIC_QUESTIONS_FILE = path.join(PUBLIC_DATA_DIR, 'banco_questoes_pna.json');
+const FLASHCARDS_FILE = path.join(DATA_DIR, 'flashcards_pna.json');
+const PUBLIC_FLASHCARDS_FILE = path.join(PUBLIC_DATA_DIR, 'flashcards_pna.json');
 
 // Ensure local directories exist for backup
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -37,6 +39,35 @@ const pool = new Pool({
 pool.on('error', (err) => {
   console.error('[Neon Postgres Error]', err.message);
 });
+
+// Auto-ensure flashcards schema in Neon
+(async () => {
+  try {
+    const client = await pool.connect();
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS flashcards (
+        id VARCHAR(50) PRIMARY KEY,
+        front TEXT NOT NULL,
+        back TEXT NOT NULL,
+        area VARCHAR(100),
+        subarea VARCHAR(255),
+        theme VARCHAR(255),
+        tags JSONB DEFAULT '[]'::jsonb,
+        interval INTEGER DEFAULT 0,
+        repetitions INTEGER DEFAULT 0,
+        ease_factor REAL DEFAULT 2.5,
+        due_date BIGINT,
+        last_reviewed BIGINT,
+        status VARCHAR(50) DEFAULT 'new',
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+    `);
+    client.release();
+    console.log('[Neon PostgreSQL] Flashcards table schema verified.');
+  } catch (e) {
+    console.warn('[Neon PostgreSQL Init Notice]', e.message);
+  }
+})();
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -157,10 +188,9 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // 2. API: Load User Progress from Neon PostgreSQL (with fallback to local disk)
+  // 2. API: Load User Progress from Neon PostgreSQL
   if (pathname === '/api/load-progress' && req.method === 'GET') {
     try {
-      // First try Neon
       try {
         const dbRes = await pool.query('SELECT * FROM user_progress WHERE user_id = $1 LIMIT 1', ['default_user']);
         if (dbRes.rows && dbRes.rows.length > 0) {
@@ -184,7 +214,6 @@ const server = http.createServer(async (req, res) => {
         console.warn('[Neon load fallback to disk]', neonErr.message);
       }
 
-      // Disk fallback
       if (fs.existsSync(PROGRESS_FILE)) {
         const content = fs.readFileSync(PROGRESS_FILE, 'utf-8');
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -229,7 +258,6 @@ const server = http.createServer(async (req, res) => {
       console.warn('[Neon fetch questions fallback]', neonErr.message);
     }
 
-    // Fallback to local static file
     if (fs.existsSync(QUESTIONS_FILE)) {
       const fileStream = fs.createReadStream(QUESTIONS_FILE);
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -238,7 +266,7 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // 4. API: Save / Edit Question in Neon PostgreSQL + Local Disk
+  // 4. API: Save / Edit Question in Neon PostgreSQL
   if (pathname === '/api/save-question' && req.method === 'POST') {
     try {
       const updatedQ = await parseBody(req);
@@ -248,7 +276,6 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      // Neon PostgreSQL Write
       try {
         await pool.query(`
           INSERT INTO questoes (
@@ -286,7 +313,6 @@ const server = http.createServer(async (req, res) => {
         console.error('[Neon save question error]', dbErr.message);
       }
 
-      // Local Disk Backup
       try {
         let dbData = { dataset: 'PNA_MED_PORTUGAL_MASTER', questoes: [] };
         if (fs.existsSync(QUESTIONS_FILE)) {
@@ -320,7 +346,129 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // 5. Static File Serving (Vite dist folder)
+  // 5. API: Flashcards - Load from Neon PostgreSQL
+  if (pathname === '/api/flashcards' && req.method === 'GET') {
+    try {
+      try {
+        const fcRes = await pool.query('SELECT * FROM flashcards ORDER BY updated_at DESC');
+        if (fcRes.rows) {
+          const cards = fcRes.rows.map(r => ({
+            id: r.id,
+            front: r.front,
+            back: r.back,
+            area: r.area,
+            subarea: r.subarea,
+            theme: r.theme,
+            tags: r.tags || [],
+            interval: r.interval || 0,
+            repetitions: r.repetitions || 0,
+            easeFactor: r.ease_factor || 2.5,
+            dueDate: r.due_date ? Number(r.due_date) : Date.now(),
+            lastReviewed: r.last_reviewed ? Number(r.last_reviewed) : null,
+            status: r.status || 'new'
+          }));
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, flashcards: cards }));
+          return;
+        }
+      } catch (neonErr) {
+        console.warn('[Neon fetch flashcards fallback]', neonErr.message);
+      }
+
+      if (fs.existsSync(FLASHCARDS_FILE)) {
+        const content = fs.readFileSync(FLASHCARDS_FILE, 'utf-8');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(content);
+        return;
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, flashcards: [] }));
+      return;
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+      return;
+    }
+  }
+
+  // 6. API: Flashcards - Save / Update list in Neon PostgreSQL + Disk
+  if (pathname === '/api/save-flashcards' && req.method === 'POST') {
+    try {
+      const body = await parseBody(req);
+      const cards = Array.isArray(body) ? body : (body.flashcards || []);
+
+      // Neon PostgreSQL Batch Upsert
+      let client = null;
+      try {
+        client = await pool.connect();
+        await client.query('BEGIN');
+        for (const c of cards) {
+          await client.query(`
+            INSERT INTO flashcards (
+              id, front, back, area, subarea, theme, tags, interval, repetitions, ease_factor, due_date, last_reviewed, status, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
+            ON CONFLICT (id) DO UPDATE SET
+              front = EXCLUDED.front,
+              back = EXCLUDED.back,
+              area = EXCLUDED.area,
+              subarea = EXCLUDED.subarea,
+              theme = EXCLUDED.theme,
+              tags = EXCLUDED.tags,
+              interval = EXCLUDED.interval,
+              repetitions = EXCLUDED.repetitions,
+              ease_factor = EXCLUDED.ease_factor,
+              due_date = EXCLUDED.due_date,
+              last_reviewed = EXCLUDED.last_reviewed,
+              status = EXCLUDED.status,
+              updated_at = NOW();
+          `, [
+            c.id,
+            c.front || '',
+            c.back || '',
+            c.area || 'Clínica Médica',
+            c.subarea || 'Geral',
+            c.theme || 'Conceito Clínico',
+            JSON.stringify(c.tags || []),
+            c.interval || 0,
+            c.repetitions || 0,
+            c.easeFactor || 2.5,
+            c.dueDate || Date.now(),
+            c.lastReviewed || null,
+            c.status || 'new'
+          ]);
+        }
+        await client.query('COMMIT');
+      } catch (dbErr) {
+        if (client) {
+          try { await client.query('ROLLBACK'); } catch (_) {}
+        }
+        console.error('[Neon save flashcards error]', dbErr.message);
+      } finally {
+        if (client) client.release();
+      }
+
+      // Local Disk Backup
+      try {
+        const jsonStr = JSON.stringify({ flashcards: cards, updatedAt: new Date().toISOString() }, null, 2);
+        fs.writeFileSync(FLASHCARDS_FILE, jsonStr, 'utf-8');
+        fs.writeFileSync(PUBLIC_FLASHCARDS_FILE, jsonStr, 'utf-8');
+      } catch (fsErr) {
+        console.warn('[Disk flashcards backup notice]', fsErr.message);
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, count: cards.length, source: 'Neon PostgreSQL + Disk Sync' }));
+      return;
+    } catch (err) {
+      console.error('Error saving flashcards:', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+      return;
+    }
+  }
+
+  // 7. Static File Serving (Vite dist folder)
   let filePath = path.join(DIST_DIR, pathname === '/' ? 'index.html' : pathname);
 
   if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {

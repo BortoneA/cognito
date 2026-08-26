@@ -1,8 +1,9 @@
 /**
  * Flashcard Service implementing Anki SM-2 Spaced Repetition Algorithm
+ * with Real-Time Neon PostgreSQL Cloud Sync
  */
 
-const FLASHCARDS_STORAGE_KEY = 'PNA_MED_FLASHCARDS_V1';
+const FLASHCARDS_STORAGE_KEY = 'PNA_MED_FLASHCARDS_V2';
 
 export const calculateSM2 = (card, rating) => {
   // rating: 1 (Errei), 2 (Difícil), 3 (Bom), 4 (Fácil)
@@ -62,17 +63,62 @@ export const getStoredFlashcards = () => {
   }
 };
 
-export const saveFlashcards = (cards) => {
+export const fetchFlashcardsFromNeon = async () => {
+  try {
+    const res = await fetch('/api/flashcards', {
+      headers: { 'ngrok-skip-browser-warning': 'true' }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && Array.isArray(data.flashcards) && data.flashcards.length > 0) {
+        saveFlashcardsLocal(data.flashcards);
+        return data.flashcards;
+      }
+    }
+  } catch (e) {
+    console.debug('Neon flashcards load offline notice:', e.message);
+  }
+  return getStoredFlashcards();
+};
+
+const saveFlashcardsLocal = (cards) => {
   try {
     localStorage.setItem(FLASHCARDS_STORAGE_KEY, JSON.stringify(cards));
   } catch (e) {
-    console.error('Failed to save flashcards:', e);
+    console.error('Failed to save flashcards to localStorage:', e);
+  }
+};
+
+export const saveFlashcards = (cards) => {
+  // 1. Save local
+  saveFlashcardsLocal(cards);
+
+  // 2. Save directly to Neon PostgreSQL Cloud
+  try {
+    fetch('/api/save-flashcards', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true'
+      },
+      body: JSON.stringify({ flashcards: cards })
+    }).catch(err => console.debug('Neon flashcards background sync notice:', err.message));
+  } catch (e) {
+    console.debug('Neon flashcards save offline fallback');
   }
 };
 
 export const clearAllFlashcards = () => {
   try {
     localStorage.removeItem(FLASHCARDS_STORAGE_KEY);
+    fetch('/api/save-flashcards', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true'
+      },
+      body: JSON.stringify({ flashcards: [] })
+    }).catch(() => {});
     return [];
   } catch (e) {
     console.error('Failed to clear flashcards:', e);
@@ -108,7 +154,7 @@ export const createCustomFlashcard = (cardData) => {
 };
 
 /**
- * Generates flashcards on-demand from selected questions (e.g. error notebook or specific area)
+ * Generates flashcards on-demand from selected questions
  */
 export const generateFlashcardsFromQuestions = (questions, currentCards = []) => {
   const existingQuestionIds = new Set(currentCards.map(c => c.questionId).filter(Boolean));

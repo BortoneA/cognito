@@ -159,8 +159,8 @@ const QuestionCard = ({ question, isSimulationMode = false, onAnswerSimulation, 
             {question.nivel_de_dificuldade || 'Classificação PNA'}
           </span>
           {question.isCustomEdited && (
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-              Editada Localmente
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+              Editada no Neon
             </span>
           )}
         </div>
@@ -171,7 +171,7 @@ const QuestionCard = ({ question, isSimulationMode = false, onAnswerSimulation, 
           {onEditQuestion && (
             <button
               onClick={() => onEditQuestion(question)}
-              title="Editar Questão no Banco Local"
+              title="Editar Questão no Neon PostgreSQL"
               className="p-2 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-indigo-400 border border-white/10 transition-all text-xs flex items-center gap-1 touch-target active:scale-95"
             >
               <Edit3 className="w-4 h-4" />

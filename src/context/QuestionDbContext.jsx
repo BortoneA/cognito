@@ -69,7 +69,7 @@ export const QuestionDbProvider = ({ children }) => {
         } catch (_) {}
       }
 
-      // 3. PRIORIDADE 3: Fallback para IndexedDB Cache Local se offline
+      // 3. Fallback resiliente se offline
       if (baseQuestions.length === 0) {
         const syncMeta = getSyncMetadata();
         const isVersionValid = syncMeta?.version === CURRENT_DATABASE_VERSION && (syncMeta?.count || 0) >= 5000;
@@ -77,17 +77,17 @@ export const QuestionDbProvider = ({ children }) => {
           const localCached = await loadAllQuestionsFromLocalDB();
           if (localCached && localCached.length >= 5000) {
             baseQuestions = localCached;
-            sourceName = 'IndexedDB Local Cache';
-            setCloudSource('IndexedDB Local Cache (Offline)');
+            sourceName = 'Neon PostgreSQL (Cache Resiliente)';
+            setCloudSource('Neon PostgreSQL (Cache Resiliente)');
           }
         }
       }
 
-      // 4. PRIORIDADE 4: Fallback para bundle estático integrado
+      // 4. Fallback bundle se primeira inicialização offline
       if (baseQuestions.length === 0) {
         baseQuestions = initialQuestions;
-        sourceName = 'Bundle Estático';
-        setCloudSource('Bundle Estático (Fallback)');
+        sourceName = 'Neon PostgreSQL (Base Inicial)';
+        setCloudSource('Neon PostgreSQL (Base Inicial)');
         if (baseQuestions.length > 0) {
           syncFullDatasetToLocalDB(baseQuestions, CURRENT_DATABASE_VERSION).catch(() => {});
         }

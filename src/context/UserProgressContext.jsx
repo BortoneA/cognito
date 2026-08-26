@@ -47,28 +47,28 @@ export const UserProgressProvider = ({ children }) => {
 
   const syncTimeoutRef = useRef(null);
 
-  // 1. Initial Load: Check disk file on startup
+  // 1. Initial Load: Prioritize Neon PostgreSQL Cloud on startup
   useEffect(() => {
-    const loadDiskProgress = async () => {
+    const loadCloudProgress = async () => {
       try {
         const res = await fetch('/api/load-progress', {
           headers: { 'ngrok-skip-browser-warning': 'true' }
         });
         if (res.ok) {
-          const diskData = await res.json();
-          if (diskData && !diskData.empty && diskData.answers) {
+          const cloudData = await res.json();
+          if (cloudData && !cloudData.empty && cloudData.answers) {
             setProgress(prev => {
-              const diskAnswersCount = Object.keys(diskData.answers || {}).length;
+              const cloudAnswersCount = Object.keys(cloudData.answers || {}).length;
               const localAnswersCount = Object.keys(prev.answers || {}).length;
               
-              if (diskAnswersCount >= localAnswersCount) {
+              if (cloudAnswersCount >= localAnswersCount || cloudData.updatedAt) {
                 return {
                   ...defaultState,
                   ...prev,
-                  ...diskData,
-                  answers: { ...prev.answers, ...diskData.answers },
-                  savedQuestions: { ...prev.savedQuestions, ...diskData.savedQuestions },
-                  notes: { ...prev.notes, ...diskData.notes }
+                  ...cloudData,
+                  answers: { ...prev.answers, ...cloudData.answers },
+                  savedQuestions: { ...prev.savedQuestions, ...cloudData.savedQuestions },
+                  notes: { ...prev.notes, ...cloudData.notes }
                 };
               }
               return prev;
@@ -76,10 +76,10 @@ export const UserProgressProvider = ({ children }) => {
           }
         }
       } catch (e) {
-        console.debug('No disk server available on initial load');
+        console.debug('Neon progress load offline notice');
       }
     };
-    loadDiskProgress();
+    loadCloudProgress();
   }, []);
 
   // 2. Continuous Persistence: Save to LocalStorage + Direct Disk File on change

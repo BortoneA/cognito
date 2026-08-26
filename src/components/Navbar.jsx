@@ -108,15 +108,16 @@ const Navbar = ({ activeTab, setActiveTab, onOpenDataModal, onOpenQuickTest }) =
               {/* Theme & Reading Customizer */}
               <ThemeSwitcher />
 
-              {/* DB button with sync indicator */}
+              {/* DB button with Neon Cloud sync indicator */}
               <button
                 onClick={onOpenDataModal}
-                title={isSynchronized ? "Banco Local Sincronizado (IndexedDB)" : "Banco de Dados Local"}
-                className="p-2 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all active:scale-95 touch-target relative"
+                title={isSynchronized ? "Neon PostgreSQL Cloud (Master DB Conectado)" : "Banco de Dados"}
+                className="px-2.5 py-1.5 rounded-2xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 hover:text-white border border-indigo-500/20 transition-all active:scale-95 touch-target flex items-center gap-1.5"
               >
-                <Database className="w-4 h-4" />
+                <Database className="w-3.5 h-3.5 text-indigo-400" />
+                <span className="hidden xl:inline text-[11px] font-bold">Neon DB</span>
                 {isSynchronized && (
-                  <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-slate-950 animate-pulse" />
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-slate-950 animate-pulse" />
                 )}
               </button>
             </div>

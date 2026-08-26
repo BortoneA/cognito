@@ -24,44 +24,62 @@ export const QuestionDbProvider = ({ children }) => {
   const [lastSyncTime, setLastSyncTime] = useState(Date.now());
   const [loadError, setLoadError] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [syncStatusText, setSyncStatusText] = useState(`🟢 Sincronizado (${initialQuestions.length} questões)`);
+  const [syncStatusText, setSyncStatusText] = useState(`⚡ Neon PostgreSQL Master (${initialQuestions.length} questões)`);
 
-  // Master background synchronization routine
-  const performSync = useCallback(async (forceRemote = false) => {
+  // Master Neon PostgreSQL First Synchronization Routine
+  const performSync = useCallback(async (forceFull = false) => {
     try {
       setIsSyncing(true);
-      let baseQuestions = initialQuestions;
-      const syncMeta = getSyncMetadata();
-      const isVersionValid = syncMeta?.version === CURRENT_DATABASE_VERSION && (syncMeta?.count || 0) >= 5000;
+      let baseQuestions = [];
+      let sourceName = 'Neon PostgreSQL';
 
-      // 1. Check Neon PostgreSQL remote if forced or initial load
-      if (forceRemote) {
-        try {
-          const res = await fetch('/api/questions', { 
-            headers: { 'ngrok-skip-browser-warning': 'true' } 
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (data && data.questoes && data.questoes.length >= 5000) {
-              baseQuestions = data.questoes;
-              await syncFullDatasetToLocalDB(baseQuestions, CURRENT_DATABASE_VERSION);
-            }
+      // 1. PRIORIDADE 1: Consultar diretamente o Neon PostgreSQL Cloud
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+        const res = await fetch('/api/questions', { 
+          headers: { 'ngrok-skip-browser-warning': 'true' },
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.questoes && data.questoes.length >= 5000) {
+            baseQuestions = data.questoes;
+            sourceName = 'Neon PostgreSQL Cloud (Master)';
+            // Atualiza cache local do IndexedDB em background
+            syncFullDatasetToLocalDB(baseQuestions, CURRENT_DATABASE_VERSION).catch(() => {});
           }
-        } catch (netErr) {
-          console.debug('Neon remote sync fallback to local cache:', netErr);
         }
-      } else if (isVersionValid) {
-        const localCached = await loadAllQuestionsFromLocalDB();
-        if (localCached && localCached.length >= 5000) {
-          baseQuestions = localCached;
-        }
-      } else {
-        if (baseQuestions.length > 0) {
-          await syncFullDatasetToLocalDB(baseQuestions, CURRENT_DATABASE_VERSION);
+      } catch (neonErr) {
+        console.debug('Neon PostgreSQL live query notice (usando fallback local):', neonErr.message);
+      }
+
+      // 2. PRIORIDADE 2: Fallback para IndexedDB Cache Local se Neon indisponível
+      if (baseQuestions.length === 0) {
+        const syncMeta = getSyncMetadata();
+        const isVersionValid = syncMeta?.version === CURRENT_DATABASE_VERSION && (syncMeta?.count || 0) >= 5000;
+        if (isVersionValid) {
+          const localCached = await loadAllQuestionsFromLocalDB();
+          if (localCached && localCached.length >= 5000) {
+            baseQuestions = localCached;
+            sourceName = 'IndexedDB Local Cache';
+          }
         }
       }
 
-      // 2. Overlay user custom edits and additions
+      // 3. PRIORIDADE 3: Fallback para bundle estático integrado
+      if (baseQuestions.length === 0) {
+        baseQuestions = initialQuestions;
+        sourceName = 'Bundle Estático';
+        if (baseQuestions.length > 0) {
+          syncFullDatasetToLocalDB(baseQuestions, CURRENT_DATABASE_VERSION).catch(() => {});
+        }
+      }
+
+      // 4. Incorporar edições personalizadas do usuário
       const edits = await getLocalQuestionEdits();
       setLocalEditsMap(edits || {});
 
@@ -79,7 +97,7 @@ export const QuestionDbProvider = ({ children }) => {
       setQuestions(merged);
       setIsSynchronized(true);
       setLastSyncTime(Date.now());
-      setSyncStatusText(`⚡ Neon PostgreSQL (${merged.length} questões)`);
+      setSyncStatusText(`⚡ ${sourceName} (${merged.length} questões)`);
       setIsLoaded(true);
       return merged;
     } catch (err) {
@@ -111,7 +129,7 @@ export const QuestionDbProvider = ({ children }) => {
     }
 
     const handleStorageChange = (e) => {
-      if (e.key && e.key.startsWith('PNA_MED_')) {
+      if (e.key && e.key === 'PNA_MED_LOCAL_QUESTION_EDITS_V2') {
         performSync(false);
       }
     };
@@ -142,12 +160,12 @@ export const QuestionDbProvider = ({ children }) => {
     }
   };
 
-  // Save/Edit a question with immediate real-time synchronization and direct disk persistence
+  // Save/Edit a question with Neon PostgreSQL as Priority Master
   const editQuestion = async (updatedQuestion) => {
     const saved = await saveLocalQuestionEdit(updatedQuestion);
     if (!saved) return false;
 
-    // Direct Disk File Write
+    // Neon PostgreSQL Cloud Direct Write
     try {
       fetch('/api/save-question', {
         method: 'POST',
@@ -156,7 +174,7 @@ export const QuestionDbProvider = ({ children }) => {
           'ngrok-skip-browser-warning': 'true'
         },
         body: JSON.stringify(saved)
-      });
+      }).catch(err => console.debug('Neon save question async notice:', err));
     } catch (e) {
       console.debug('Disk save question fallback');
     }

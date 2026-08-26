@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 
 const UserProgressContext = createContext();
 
@@ -15,8 +15,8 @@ const defaultState = {
   dailyGoal: 20,        // questões por dia
 };
 
-// Disk Persistence Helper
-const saveProgressToDisk = async (payload) => {
+// Immediate Neon Cloud Persistence Helper
+const saveProgressToNeon = async (payload) => {
   try {
     const res = await fetch('/api/save-progress', {
       method: 'POST',
@@ -27,10 +27,10 @@ const saveProgressToDisk = async (payload) => {
       body: JSON.stringify(payload)
     });
     if (!res.ok) {
-      console.debug('Could not sync progress to local disk file:', res.statusText);
+      console.debug('Neon save response notice:', res.statusText);
     }
   } catch (e) {
-    console.debug('Disk sync skipped (offline mode):', e.message);
+    console.debug('Neon progress save offline notice:', e.message);
   }
 };
 
@@ -45,59 +45,69 @@ export const UserProgressProvider = ({ children }) => {
     }
   });
 
-  const syncTimeoutRef = useRef(null);
+  const [isCloudSynced, setIsCloudSynced] = useState(false);
+  const [lastCloudSyncTime, setLastCloudSyncTime] = useState(null);
 
-  // 1. Initial Load: Prioritize Neon PostgreSQL Cloud on startup
-  useEffect(() => {
-    const loadCloudProgress = async () => {
-      try {
-        const res = await fetch('/api/load-progress', {
-          headers: { 'ngrok-skip-browser-warning': 'true' }
-        });
-        if (res.ok) {
-          const cloudData = await res.json();
-          if (cloudData && !cloudData.empty && cloudData.answers) {
-            setProgress(prev => {
-              const cloudAnswersCount = Object.keys(cloudData.answers || {}).length;
-              const localAnswersCount = Object.keys(prev.answers || {}).length;
-              
-              if (cloudAnswersCount >= localAnswersCount || cloudData.updatedAt) {
-                return {
-                  ...defaultState,
-                  ...prev,
-                  ...cloudData,
-                  answers: { ...prev.answers, ...cloudData.answers },
-                  savedQuestions: { ...prev.savedQuestions, ...cloudData.savedQuestions },
-                  notes: { ...prev.notes, ...cloudData.notes }
-                };
-              }
-              return prev;
-            });
-          }
+  // Master function to pull fresh progress directly from Neon PostgreSQL
+  const refreshProgressFromNeon = useCallback(async () => {
+    try {
+      const res = await fetch('/api/load-progress', {
+        headers: { 'ngrok-skip-browser-warning': 'true' }
+      });
+      if (res.ok) {
+        const cloudData = await res.json();
+        if (cloudData && !cloudData.empty && cloudData.answers) {
+          setProgress(prev => {
+            const merged = {
+              ...defaultState,
+              ...prev,
+              ...cloudData,
+              answers: { ...prev.answers, ...cloudData.answers },
+              savedQuestions: { ...prev.savedQuestions, ...cloudData.savedQuestions },
+              notes: { ...prev.notes, ...cloudData.notes }
+            };
+            try {
+              localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(merged));
+            } catch (_) {}
+            return merged;
+          });
+          setIsCloudSynced(true);
+          setLastCloudSyncTime(Date.now());
         }
-      } catch (e) {
-        console.debug('Neon progress load offline notice');
       }
-    };
-    loadCloudProgress();
+    } catch (e) {
+      console.debug('Neon progress poll offline notice');
+    }
   }, []);
 
-  // 2. Continuous Persistence: Save to LocalStorage + Direct Disk File on change
+  // 1. Initial Load: Immediately pull everything from Neon PostgreSQL Cloud
+  useEffect(() => {
+    refreshProgressFromNeon();
+
+    // 2. Real-Time Heartbeat: Auto-pull every 20 seconds from Neon for multi-device sync
+    const interval = setInterval(() => {
+      refreshProgressFromNeon();
+    }, 20000);
+
+    const handleOnline = () => {
+      refreshProgressFromNeon();
+    };
+
+    window.addEventListener('online', handleOnline);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [refreshProgressFromNeon]);
+
+  // Save to LocalStorage whenever progress changes
   useEffect(() => {
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(progress));
     } catch (e) {
       console.error('Failed to save to localStorage:', e);
     }
-
-    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
-    syncTimeoutRef.current = setTimeout(() => {
-      saveProgressToDisk(progress);
-    }, 250);
-
-    return () => {
-      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
-    };
   }, [progress]);
 
   const recordActivity = (type = 'flashcards', count = 1) => {
@@ -115,7 +125,7 @@ export const UserProgressProvider = ({ children }) => {
           }
         }
       };
-      saveProgressToDisk(updated);
+      saveProgressToNeon(updated);
       return updated;
     });
   };
@@ -144,7 +154,7 @@ export const UserProgressProvider = ({ children }) => {
           }
         }
       };
-      saveProgressToDisk(updated);
+      saveProgressToNeon(updated);
       return updated;
     });
   };
@@ -158,7 +168,7 @@ export const UserProgressProvider = ({ children }) => {
         newSaved[questionId] = true;
       }
       const updated = { ...prev, savedQuestions: newSaved };
-      saveProgressToDisk(updated);
+      saveProgressToNeon(updated);
       return updated;
     });
   };
@@ -172,7 +182,7 @@ export const UserProgressProvider = ({ children }) => {
           [questionId]: text
         }
       };
-      saveProgressToDisk(updated);
+      saveProgressToNeon(updated);
       return updated;
     });
   };
@@ -183,7 +193,7 @@ export const UserProgressProvider = ({ children }) => {
         ...prev,
         examHistory: [examLog, ...(prev.examHistory || [])]
       };
-      saveProgressToDisk(updated);
+      saveProgressToNeon(updated);
       return updated;
     });
   };
@@ -199,7 +209,7 @@ export const UserProgressProvider = ({ children }) => {
           [id]: Date.now()
         }
       };
-      saveProgressToDisk(updated);
+      saveProgressToNeon(updated);
       return updated;
     });
   };
@@ -209,7 +219,7 @@ export const UserProgressProvider = ({ children }) => {
     if (!isNaN(parsed) && parsed > 0) {
       setProgress(prev => {
         const updated = { ...prev, dailyGoal: parsed };
-        saveProgressToDisk(updated);
+        saveProgressToNeon(updated);
         return updated;
       });
     }
@@ -223,22 +233,22 @@ export const UserProgressProvider = ({ children }) => {
   };
 
   const resetAllProgress = () => {
-    if (window.confirm("Atenção: Deseja realmente zerar todo o seu histórico de desempenho e anotações?")) {
+    if (window.confirm("Atenção: Deseja realmente zerar todo o seu histórico de desempenho e anotações no Neon DB?")) {
       setProgress(defaultState);
-      saveProgressToDisk(defaultState);
+      saveProgressToNeon(defaultState);
     }
   };
 
   const resetProgress = () => {
     setProgress(defaultState);
-    saveProgressToDisk(defaultState);
+    saveProgressToNeon(defaultState);
   };
 
   const exportData = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(progress, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `pna_progresso_${new Date().toISOString().slice(0, 10)}.json`);
+    downloadAnchor.setAttribute("download", `pna_progresso_neon_${new Date().toISOString().slice(0, 10)}.json`);
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
@@ -250,7 +260,7 @@ export const UserProgressProvider = ({ children }) => {
       if (parsed && typeof parsed === 'object') {
         const merged = { ...defaultState, ...parsed };
         setProgress(merged);
-        saveProgressToDisk(merged);
+        saveProgressToNeon(merged);
         return true;
       }
       return false;
@@ -263,6 +273,9 @@ export const UserProgressProvider = ({ children }) => {
     <UserProgressContext.Provider
       value={{
         progress,
+        isCloudSynced,
+        lastCloudSyncTime,
+        refreshProgressFromNeon,
         saveAnswer,
         toggleSaveQuestion,
         saveNote,

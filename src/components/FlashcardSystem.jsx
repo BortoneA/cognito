@@ -58,13 +58,23 @@ const FlashcardSystem = () => {
     theme: ''
   });
 
-  // Load from Neon Cloud Database on mount
+  // Load from Neon Cloud Database on mount + Real-time auto-sync heartbeat
   useEffect(() => {
     fetchFlashcardsFromNeon().then(cards => {
       if (cards && cards.length > 0) {
         setFlashcards(cards);
       }
     });
+
+    const interval = setInterval(() => {
+      fetchFlashcardsFromNeon().then(cards => {
+        if (cards && cards.length > 0) {
+          setFlashcards(cards);
+        }
+      });
+    }, 20000);
+
+    return () => clearInterval(interval);
   }, []);
 
   // Filter cards by active area

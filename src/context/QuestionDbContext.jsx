@@ -139,7 +139,7 @@ export const QuestionDbProvider = ({ children }) => {
 
     const interval = setInterval(() => {
       performSync(false);
-    }, 60000);
+    }, 20000);
 
     return () => {
       if (channel) channel.close();
